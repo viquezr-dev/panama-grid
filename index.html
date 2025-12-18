@@ -18,38 +18,43 @@
 
         /* Barra de búsqueda amigable para dedos */
         .search-container {
-            position: absolute; top: 10px; right: 10px; left: 10px;
-			z-index: 1000; display: flex; gap: 5px;
-			background: white; padding: 5px; border-radius: 8px;
-			box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-			height: 45px; /* Altura fija para que se vea uniforme */
-			align-items: center; /* Centra verticalmente los elementos */
-        }
-
-        input#search-input {
-            flex: 1; 
-			border: 1px solid #ccc; 
-			border-radius: 4px;
-			padding: 8px 12px; 
-			font-size: 16px; 
-			outline: none;
-			height: 100%; /* Ocupa todo el alto del contenedor */
+            position: absolute; 
+			top: 10px; 
+			right: 10px; 
+			left: 10px;
+			z-index: 1000; 
+			display: flex; 
+			flex-direction: row; /* Alinea uno al lado del otro */
+			gap: 8px;
+			background: white; 
+			padding: 8px; 
+			border-radius: 10px;
+			box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+			height: 50px;
 			box-sizing: border-box;
         }
 
+        input#search-input {
+            flex-grow: 1; 
+			border: 1px solid #ddd; 
+			border-radius: 6px;
+			padding: 0 12px; 
+			font-size: 16px; 
+			outline: none;
+			width: 10%;
+        }
+
         button#search-btn {
-            background: #2c3e50; 
+            flex-shrink: 0; /* EVITA QUE SE ALARGUE */
+			background: #2c3e50; 
 			color: white; 
 			border: none;
-			height: 100%; /* Ocupa todo el alto del contenedor */
-			padding: 0 15px; /* Espacio a los lados del texto */
-			border-radius: 4px; 
+			padding: 0 25px; 
+			border-radius: 6px; 
 			font-weight: bold;
+			font-size: 14px;
 			cursor: pointer;
-			min-width: 80px; /* Evita que se vea muy pequeño o muy grande */
-			display: flex;
-			align-items: center;
-			justify-content: center;
+			height: 100%;
         }
 
         /* Estilo de los códigos en el mapa */
@@ -61,10 +66,16 @@
 
         /* Botón de ubicación personalizado */
         .loc-button {
-            background: white; width: 40px; height: 40px;
-            display: flex; align-items: center; justify-content: center;
-            border-radius: 5px; border: 2px solid rgba(0,0,0,0.2);
-            cursor: pointer; font-size: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            margin-top: 60px; 
+			background: white; 
+			width: 45px; 
+			height: 45px;
+			display: flex; 
+			align-items: center; 
+			justify-content: center;
+			border-radius: 8px; 
+			border: 2px solid rgba(0,0,0,0.2);
+			font-size: 22px;
         }
         .loc-button:active { background: #e0e0e0; }
     </style>
