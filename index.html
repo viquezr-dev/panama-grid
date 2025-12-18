@@ -102,56 +102,43 @@
 	        }
 	    }
 	
+	    // 🔴 Si no hay estafeta → solo texto
 	    if (vm === "ZONA NO DEFINIDA") {
 	        L.popup()
 	            .setLatLng(e.latlng)
 	            .setContent("<b>ZONA NO DEFINIDA</b>")
 	            .openOn(mymap);
-	        
+	        return;
 	    }
 	
+	    // 🧠 Código 7C (MISMA lógica que QGIS)
 	    const cod7 = generarCOD7(e.latlng.lat, e.latlng.lng);
-	    if (!cod7) return;
+	
+	    // 🔒 Validación estricta
+	    if (!cod7 || !/^[A-Z]{3}\d{4}$/.test(cod7)) {
+	        L.popup()
+	            .setLatLng(e.latlng)
+	            .setContent(`<b>${vm}</b>`)
+	            .openOn(mymap);
+	        return;
+	    }
+	
+	    // ✅ Código postal final
+	    const postal = `${vm}-${cod7}`;
 	
 	    L.popup()
 	        .setLatLng(e.latlng)
 	        .setContent(`
-	            <div style="text-align:center">
-	                <div style="font-weight:bold">CÓDIGO POSTAL</div>
-	                <div style="font-size:22px; font-weight:bold; color:#e67e22">
-	                    ${vm}-${cod7}
+	            <div style="text-align:center;">
+	                <div style="font-weight:bold; margin-bottom:6px;">
+	                    CÓDIGO POSTAL
+	                </div>
+	                <div style="font-size:22px; font-weight:bold; color:#e67e22;">
+	                    ${postal}
 	                </div>
 	            </div>
 	        `)
 	        .openOn(mymap);
-	});
-
-		const cod7 = generarCOD7(e.latlng.lat, e.latlng.lng);
-
-		// 🚫 VALIDACIÓN ESTRICTA
-		if (!cod7 || !/^[A-Z]{3}\d{4}$/.test(cod7)) {
-			L.popup()
-				.setLatLng(e.latlng)
-				.setContent(`<b>${vm}</b>`)
-				.openOn(mymap);
-			return;
-		}
-
-		const postal = `${vm}-${cod7}`;
-
-		L.popup()
-			.setLatLng(e.latlng)
-			.setContent(`
-				<div style="text-align:center;">
-					<div style="font-weight:bold; margin-bottom:6px;">
-						CÓDIGO POSTAL
-					</div>
-					<div style="font-size:22px; font-weight:bold; color:#e67e22;">
-						${postal}
-					</div>
-				</div>
-			`)
-			.openOn(mymap);
 	});
 
 
@@ -200,4 +187,5 @@
 </script>
 </body>
 </html>
+
 
