@@ -65,53 +65,66 @@
         return lll + String(y_val % 10000).padStart(4, '0');
     }
 	function generarCOD7(lat, lon) {
-		const ALFABETO = "ABCDEFGHJKLMNPQRSTUVWXYZ"; // sin O, I, L, 0
+    const ALFABETO = "ABCDEFGHJKLMNPQRSTUVWXYZ";
 
-		// Normalización longitudinal (Panamá)
-		const xNorm = (lon + 83.05) / (83.05 - 77.15);
-		if (xNorm < 0 || xNorm >= 1) return null;
+    const xNorm = (lon - (-83.05)) / (-77.15 - (-83.05));
+    if (xNorm < 0 || xNorm >= 1) return null;
 
-		let v = Math.floor(xNorm * Math.pow(24, 3));
-		let lll = "";
-		for (let i = 0; i < 3; i++) {
-			lll = ALFABETO[v % 24] + lll;
-			v = Math.floor(v / 24);
-		}
+    let v = Math.floor(xNorm * Math.pow(24, 3));
+    let lll = "";
+    for (let i = 0; i < 3; i++) {
+        lll = ALFABETO[v % 24] + lll;
+        v = Math.floor(v / 24);
+    }
 
-		// Normalización latitudinal
-		const yNorm = (lat - 7.0) / (10.0 - 7.0);
-		if (yNorm < 0 || yNorm >= 1) return null;
+    const yNorm = (lat - 7.0) / (10.0 - 7.0);
+    if (yNorm < 0 || yNorm >= 1) return null;
 
-		const nnnn = Math.floor(yNorm * 10000)
-			.toString()
-			.padStart(4, "0");
+    const nnnn = Math.floor(yNorm * 10000)
+        .toString()
+        .padStart(4, "0");
 
-		return lll + nnnn; // ← EXACTO 7 caracteres
-	}
+    return lll + nnnn;
+}
 
     // 3. EVENTO CLIC CORREGIDO
-    mymap.on("click", function (e) {
+    map.on("click", function (e) {
 
-		let vm = null;
-
-		if (estafetasLayer && rawGeoData) {
-			const hit = leafletPip.pointInLayer(
-				[e.latlng.lng, e.latlng.lat],
-				estafetasLayer
-			);
-			if (hit.length > 0) {
-				vm = hit[0].feature.properties.VM_LEVEL;
-			}
-		}
-
-		// 🚫 SIN ESTAFETA → SOLO TEXTO
-		if (!vm) {
-			L.popup()
-				.setLatLng(e.latlng)
-				.setContent("<b>ZONA NO DEFINIDA</b>")
-				.openOn(mymap);
-			return;
-		}
+	    let vm = "ZONA NO DEFINIDA";
+	
+	    if (estafetasLayer && rawGeoData) {
+	        const hit = leafletPip.pointInLayer(
+	            [e.latlng.lng, e.latlng.lat],
+	            estafetasLayer
+	        );
+	        if (hit.length && hit[0].feature.properties.VM_LEVEL) {
+	            vm = hit[0].feature.properties.VM_LEVEL;
+	        }
+	    }
+	
+	    if (vm === "ZONA NO DEFINIDA") {
+	        L.popup()
+	            .setLatLng(e.latlng)
+	            .setContent("<b>ZONA NO DEFINIDA</b>")
+	            .openOn(map);
+	        return;
+	    }
+	
+	    const cod7 = generarCOD7(e.latlng.lat, e.latlng.lng);
+	    if (!cod7) return;
+	
+	    L.popup()
+	        .setLatLng(e.latlng)
+	        .setContent(`
+	            <div style="text-align:center">
+	                <div style="font-weight:bold">CÓDIGO POSTAL</div>
+	                <div style="font-size:22px; font-weight:bold; color:#e67e22">
+	                    ${vm}-${cod7}
+	                </div>
+	            </div>
+	        `)
+	        .openOn(map);
+	});
 
 		const cod7 = generarCOD7(e.latlng.lat, e.latlng.lng);
 
@@ -174,7 +187,8 @@
         for (let x = Math.floor(b.getWest()/sX)*sX; x <= b.getEast(); x += sX) {
             for (let y = Math.floor(b.getSouth()/sY)*sY; y <= b.getNorth(); y += sY) {
                 const lat = y + sY/2, lon = x + sX/2;
-                const code = getPostalCode(lat, lon);
+                const code = generarCOD7(lat, lon);
+				if (!code) continue;
                 L.rectangle([[y, x], [y + sY, x + sX]], { color: "#3498db", weight: 0.5, fillOpacity: 0.03, interactive: false }).addTo(gridLayer);
                 if (mymap.getZoom() >= 18) {
                     L.marker([lat, lon], { icon: L.divIcon({ className: 'grid-label', html: code, iconSize: [60, 20] }), interactive: false }).addTo(gridLayer);
@@ -186,3 +200,4 @@
 </script>
 </body>
 </html>
+
