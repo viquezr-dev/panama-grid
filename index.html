@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PanGrid 7C - Buscador Oficial</title>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <style>
+        body { margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
+        #mapid { width: 100vw; height: 100vh; }
+        
+        /* Estilo de la barra de búsqueda */
+        .search-container {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            display: flex;
+            gap: 10px;
+        }
+        input#search-input {
+            width: 250px;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            outline: none;
+        }
+        button#search-btn {
+            background: #2c3e50;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button#search-btn:hover { background: #34495e; }
+    </style>
+</head>
+<body>
+
+<div class="search-container">
+    <input type="text" id="search-input" placeholder="Ej: A6399-QSJ6872">
+    <button id="search-btn">BUSCAR</button>
+</div>
+
+<div id="mapid"></div>
+
+<script>
+    const mymap = L.map('mapid').setView([8.98, -79.52], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mymap);
+
+    // --- FUNCIÓN DE BÚSQUEDA (EL MOTOR DE REVERSA) ---
+    // Esta función hace lo opuesto: recibe LLLNNNN y devuelve Lat/Lon aproximado
+    function decodePostal7Char(code) {
+        const ALFABETO = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+        const n_l = ALFABETO.length;
+        
+        let lll = code.substring(0, 3);
+        let nnnn = parseInt(code.substring(3, 7));
+
+        // Reconstruir X (Longitud)
+        let v_x = 0;
+        for (let i = 0; i < 3; i++) {
+            v_x = v_x * n_l + ALFABETO.indexOf(lll[i]);
+        }
+        let lon = (v_x / (1000000 - 1)) * (-77.15 - (-83.05)) + (-83.05);
+
+        // Reconstruir Y (Latitud)
+        // Nota: Como usamos módulo en el generador, aquí apuntamos al centro de Panamá 
+        // o requerimos que el mapa ya esté cerca de la zona. 
+        // Para mayor precisión, el buscador usará la vista actual.
+        let lat = (nnnn / 10000) * (10.0 - 7.0) + 7.0;
+
+        return [lat, lon];
+    }
+
+    // --- ACCIÓN DEL BOTÓN ---
+    document.getElementById('search-btn').onclick = function() {
+        const query = document.getElementById('search-input').value.trim();
+        if (!query) return;
+
+        // Separar si viene con guion A6399-QSJ6872 -> QSJ6872
+        const parts = query.split('-');
+        const s7 = parts.length > 1 ? parts[1] : parts[0];
+
+        if (s7.length !== 7) {
+            alert("Formato incorrecto. Use LLLNNNN (7 caracteres)");
+            return;
+        }
+
+        const coords = decodePostal7Char(s7.toUpperCase());
+        
+        mymap.setView(coords, 18); // Zoom máximo para ver el punto exacto
+        
+        L.marker(coords).addTo(mymap)
+            .bindPopup(`<b>Punto Encontrado</b><br>${query}`)
+            .openPopup();
+    };
+
+    // Permitir buscar al presionar "Enter"
+    document.getElementById('search-input').addEventListener("keyup", function(event) {
+        if (event.key === "Enter") {
+            document.getElementById('search-btn').click();
+        }
+    });
+
+</script>
+</body>
+</html>
