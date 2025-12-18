@@ -1,48 +1,21 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>PanGrid 7C - Versión Corregida</title>
+    <title>PanGrid 7C - Solución Clic</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
     <style>
         body, html, #mapid { width: 100%; height: 100%; margin: 0; padding: 0; }
-        
         .search-container {
-            position: absolute; top: 10px; right: 10px; z-index: 1000;
+            position: absolute; top: 10px; right: 10px; z-index: 2000;
             display: flex; background: white; padding: 5px; border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2); width: 280px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3); width: 280px;
         }
-        
-        input#search-input { 
-            flex: 1; border: 1px solid #ddd; padding: 8px; 
-            font-size: 16px; outline: none; border-radius: 4px;
-        }
-        
-        button#search-btn { 
-            background: #2c3e50; color: white; border: none; 
-            padding: 8px 15px; border-radius: 4px; cursor: pointer;
-            margin-left: 5px;
-        }
-        
-        .loc-button {
-            position: absolute; top: 70px; right: 10px; z-index: 1000;
-            background: white; width: 44px; height: 44px; display: flex;
-            align-items: center; justify-content: center; border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2); cursor: pointer; 
-            font-size: 20px; border: 1px solid #ccc;
-        }
-        
-        .grid-label { 
-            font-size: 10px; font-weight: bold; color: #2980b9; 
-            text-shadow: 0 0 2px white; pointer-events: none; 
-        }
-        
-        .info-panel {
-            position: absolute; bottom: 20px; left: 20px; z-index: 1000;
-            background: white; padding: 15px; border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2); max-width: 300px;
-        }
+        input#search-input { flex: 1; border: none; padding: 10px; font-size: 16px; outline: none; }
+        button#search-btn { background: #2c3e50; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; }
+        .grid-label { font-size: 10px; font-weight: bold; color: #2980b9; pointer-events: none; text-shadow: 0 0 2px white; }
+        .leaflet-popup-content { text-align: center; font-family: sans-serif; }
     </style>
 </head>
 <body>
@@ -59,341 +32,108 @@
 <script src="https://unpkg.com/@mapbox/leaflet-pip@latest/leaflet-pip.js"></script>
 
 <script>
-    // ==================== 1. INICIALIZACIÓN ====================
     const mymap = L.map('mapid', { zoomControl: false }).setView([8.98, -79.52], 13);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mymap);
-    L.control.zoom({ position: 'bottomright' }).addTo(mymap);
-    
+
     const gridLayer = L.layerGroup().addTo(mymap);
+    let estafetasLayer;
     let rawGeoData = null;
-    
-    const estafetasLayer = L.geoJSON(null, {
-        style: { color: "#2c3e50", weight: 2, fillOpacity: 0.1 }
-    }).addTo(mymap);
-    
-    // Cargar GeoJSON
+
+    // 1. CARGA SEGURA DEL GEOJSON
     $.getJSON("estafetas.geojson", function(data) {
         rawGeoData = data;
-        estafetasLayer.addData(data);
+        estafetasLayer = L.geoJSON(data, {
+            style: { color: "#2c3e50", weight: 2, fillOpacity: 0.1 }
+        }).addTo(mymap);
+        console.log("GeoJSON cargado correctamente");
     }).fail(function() {
-        console.warn("No se pudo cargar estafetas.geojson");
+        console.error("Error cargando estafetas.geojson. Verifica el nombre del archivo.");
     });
-    
-    // ==================== 2. ALGORITMO PANGRID 7C CORREGIDO ====================
-    const ALFABETO = "ABCDEFGHJKLMNPQRSTUVWXYZ";
-    
-    // CONSTANTES DE RANGO PARA PANAMÁ
-    const LON_WEST = -83.05;   // Límite oeste (frontera con Costa Rica)
-    const LON_EAST = -77.15;   // Límite este (frontera con Colombia)
-    const LAT_SOUTH = 7.0;     // Límite sur
-    const LAT_NORTH = 10.0;    // Límite norte
-    
-    const LON_RANGE = LON_EAST - LON_WEST;  // 5.9 grados
-    const LAT_RANGE = LAT_NORTH - LAT_SOUTH; // 3.0 grados
-    
-    // Función ORIGINAL para generar código desde coordenadas
+
+    // 2. ALGORITMO POSTAL
     function getPostalCode(lat, lon) {
-        // Normalizar longitud
-        let x_norm = (lon - LON_WEST) / LON_RANGE;
-        let x_val = Math.floor(x_norm * 999999);
-        
-        // Convertir a 3 letras
+        const ALFABETO = "ABCDEFGHJKLMNPQRSTUVWXYZ"; 
+        let x_norm = (lon - (-83.05)) / (-77.15 - (-83.05));
+        let v_x = Math.floor(x_norm * 999999);
         let lll = "";
-        let v_x = x_val;
         for (let i = 0; i < 3; i++) {
             lll = ALFABETO[Math.max(0, Math.min(v_x % 24, 23))] + lll;
             v_x = Math.floor(v_x / 24);
         }
-        
-        // Normalizar latitud - CORRECTO: 9999999 celdas
-        let y_norm = (lat - LAT_SOUTH) / LAT_RANGE;
+        let y_norm = (lat - 7.0) / (10.0 - 7.0);
         let y_val = Math.floor(y_norm * 9999999);
-        
-        // Tomar últimos 4 dígitos (módulo 10000)
-        let nnnn = y_val % 10000;
-        
-        // Retornar código LLLNNNN
-        return lll + String(nnnn).padStart(4, '0');
+        return lll + String(y_val % 10000).padStart(4, '0');
     }
-    
-    // Función INVERSA CORREGIDA - de código a coordenadas
-    function getCoordsFromPostalCode(s7) {
-        // Extraer componentes
-        const lll = s7.substring(0, 3);
-        const nnnn = parseInt(s7.substring(3, 7));  // Los últimos 4 dígitos
-        
-        // PASO 1: Decodificar las letras para obtener x_val
-        let x_val = 0;
-        for(let i = 0; i < 3; i++) {
-            const charIndex = ALFABETO.indexOf(lll[i]);
-            if (charIndex === -1) {
-                throw new Error(`Letra inválida: ${lll[i]}`);
-            }
-            x_val = x_val * 24 + charIndex;
-        }
-        
-        // x_val está en el rango 0-999999 (13824 combinaciones posibles)
-        
-        // PASO 2: Calcular longitud del CENTRO de la celda
-        // Usamos x_val + 0.5 para centrar en la celda
-        const lon_norm = (x_val + 0.5) / 999999;
-        const lon = LON_WEST + (lon_norm * LON_RANGE);
-        
-        // PASO 3: Para la latitud, nnnn representa y_val % 10000
-        // PERO no sabemos el y_val completo, solo sabemos nnnn
-        // Esto causa ambigüedad. Asumimos el valor más probable.
-        
-        // El problema: hay múltiples valores de y_val que dan el mismo nnnn
-        // Ejemplo: nnnn=1234 podría ser de y_val=1234, 11234, 21234, etc.
-        // Para Panamá, usamos el rango medio: y_val = nnnn + 5000
-        
-        // CORRECCIÓN IMPORTANTE: nnnn es y_val % 10000
-        // Para obtener latitud, necesitamos y_val / 9999999
-        // Como no sabemos y_val exacto, usamos nnnn / 10000 como aproximación
-        
-        // Esto es una aproximación - el sistema no es completamente reversible
-        const lat_norm = (nnnn + 0.5) / 10000;  // Centrado en la celda
-        const lat = LAT_SOUTH + (lat_norm * LAT_RANGE);
-        
-        console.log(`Código: ${s7}, x_val: ${x_val}, nnnn: ${nnnn}`);
-        console.log(`Coords: ${lat.toFixed(6)}, ${lon.toFixed(6)}`);
-        
-        return {
-            lat: lat,
-            lon: lon,
-            x_val: x_val,
-            nnnn: nnnn,
-            codigo: s7
-        };
-    }
-    
-    // ==================== 3. CLIC EN EL MAPA ====================
+
+    // 3. EVENTO CLIC CORREGIDO
     mymap.on('click', function(e) {
-        if (!rawGeoData) return;
+        console.log("Clic detectado en:", e.latlng.lat, e.latlng.lng);
         
-        const results = leafletPip.pointInLayer([e.latlng.lng, e.latlng.lat], estafetasLayer);
-        const code = getPostalCode(e.latlng.lat, e.latlng.lng);
+        let nombreEstafeta = "ZONA NO DEFINIDA";
         
-        if (results.length > 0) {
-            const vm = results[0].feature.properties.VM_LEVEL || "ZONA POSTAL";
-            L.popup().setLatLng(e.latlng)
-                .setContent(`<b>${vm}</b><br><span style="font-size:18px; color:#d35400; font-weight:bold;">${code}</span>`)
-                .openOn(mymap);
-        } else {
-            L.popup().setLatLng(e.latlng)
-                .setContent(`<b>Fuera de área</b><br><span style="font-size:18px; color:#7f8c8d;">${code}</span>`)
-                .openOn(mymap);
+        // Intentar detectar el polígono bajo el clic
+        if (estafetasLayer && rawGeoData) {
+            const match = leafletPip.pointInLayer([e.latlng.lng, e.latlng.lat], estafetasLayer);
+            if (match.length > 0) {
+                nombreEstafeta = match[0].feature.properties.VM_LEVEL || "ESTAFETA ENCONTRADA";
+            }
         }
+
+        const codigo = getPostalCode(e.latlng.lat, e.latlng.lng);
+
+        // Forzar la aparición del Popup
+        L.popup()
+            .setLatLng(e.latlng)
+            .setContent(`
+                <div style="padding:5px;">
+                    <strong style="color:#2c3e50;">${nombreEstafeta}</strong><br>
+                    <span style="font-size:22px; font-weight:bold; color:#e67e22;">${codigo}</span>
+                </div>
+            `)
+            .openOn(mymap);
     });
-    
-    // ==================== 4. BOTÓN GPS ====================
-    const locBtn = L.control({position: 'topright'});
-    locBtn.onAdd = function() {
-        const div = L.DomUtil.create('div', 'loc-button');
-        div.innerHTML = '🎯';
-        div.onclick = function(e) {
-            L.DomEvent.stopPropagation(e);
-            mymap.locate({setView: true, maxZoom: 16});
-        };
-        return div;
-    };
-    locBtn.addTo(mymap);
-    
-    mymap.on('locationfound', function(e) {
-        L.circleMarker(e.latlng, {radius: 8, color: '#007bff'}).addTo(mymap);
-    });
-    
-    // ==================== 5. BUSCADOR CORREGIDO ====================
+
+    // 4. BUSCADOR (Tu lógica corregida)
     document.getElementById('search-btn').onclick = function() {
-        buscarCodigo();
+        const s7 = document.getElementById('search-input').value.trim().toUpperCase();
+        if (s7.length === 7) {
+            const ALFABETO = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+            const lll = s7.substring(0, 3);
+            const nnnn = parseInt(s7.substring(3));
+
+            let v_x = 0;
+            for(let i = 0; i < 3; i++) v_x = v_x * 24 + ALFABETO.indexOf(lll[i]);
+
+            let lon = ((v_x + 0.5) / 999999) * (-77.15 - (-83.05)) + (-83.05);
+            let lat = ((nnnn + 0.5) / 10000) * (10.0 - 7.0) + 7.0;
+
+            mymap.setView([lat, lon], 19);
+            
+            // Limpiar marcador anterior
+            gridLayer.eachLayer(l => { if(l instanceof L.Marker && l.options.icon === undefined) gridLayer.removeLayer(l); });
+
+            L.marker([lat, lon]).addTo(mymap).bindPopup("<b>" + s7 + "</b>").openPopup();
+        }
     };
-    
-    document.getElementById('search-input').addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-            buscarCodigo();
-        }
-    });
-    
-    // Limpiar marcadores anteriores
-    function limpiarMarcadores() {
-        mymap.eachLayer(function(layer) {
-            if (layer instanceof L.Marker || 
-                (layer instanceof L.CircleMarker && layer.options.color === '#ff0000')) {
-                mymap.removeLayer(layer);
-            }
-        });
-    }
-    
-    // Función principal de búsqueda
-    function buscarCodigo() {
-        const input = document.getElementById('search-input').value.trim().toUpperCase();
-        
-        if (input.length === 0) return;
-        
-        // Limpiar marcadores anteriores
-        limpiarMarcadores();
-        
-        // Validar formato básico
-        if (!/^[A-Z]{3}\d{4}$/.test(input)) {
-            alert("Formato inválido. Use 3 letras + 4 números. Ejemplo: EAP3582");
-            return;
-        }
-        
-        try {
-            // Obtener coordenadas
-            const resultado = getCoordsFromPostalCode(input);
-            const lat = resultado.lat;
-            const lon = resultado.lon;
-            
-            // VERIFICAR SI ESTÁ DENTRO DE PANAMÁ
-            console.log("Verificando coordenadas:", lat, lon);
-            console.log("Límites:", LAT_SOUTH, LAT_NORTH, LON_WEST, LON_EAST);
-            
-            if (lon >= LON_WEST && lon <= LON_EAST && 
-                lat >= LAT_SOUTH && lat <= LAT_NORTH) {
-                
-                // Está dentro de Panamá - ir a la ubicación
-                mymap.setView([lat, lon], 18);
-                
-                // Crear marcador
-                const marker = L.circleMarker([lat, lon], {
-                    radius: 10,
-                    color: '#ff0000',
-                    fillColor: '#ff0000',
-                    fillOpacity: 0.8,
-                    weight: 3
-                }).addTo(mymap);
-                
-                // Calcular límites de la celda para mostrar
-                const cellWidth = LON_RANGE / 999999;
-                const cellHeight = LAT_RANGE / 10000; // Aproximación
-                
-                const west = lon - cellWidth/2;
-                const east = lon + cellWidth/2;
-                const south = lat - cellHeight/2;
-                const north = lat + cellHeight/2;
-                
-                // Dibujar rectángulo de la celda
-                L.rectangle([[south, west], [north, east]], {
-                    color: '#ff0000',
-                    weight: 2,
-                    fillOpacity: 0.1
-                }).addTo(mymap);
-                
-                // Mostrar popup
-                marker.bindPopup(`
-                    <b>Código:</b> ${input}<br>
-                    <b>Coordenadas:</b><br>
-                    ${lat.toFixed(6)}°, ${lon.toFixed(6)}°<br>
-                    <small>Centro de la celda postal</small>
-                `).openPopup();
-                
-                console.log("✅ Búsqueda exitosa en Panamá");
-                
-            } else {
-                // Fuera de Panamá
-                alert("⚠️ ADVERTENCIA: Este código está fuera del territorio de Panamá\n\n" +
-                     "Coordenadas calculadas: " + lat.toFixed(4) + "°, " + lon.toFixed(4) + "°\n" +
-                     "¿Desea ir a esta ubicación de todos modos?");
-                
-                // Preguntar si quiere ir de todos modos
-                if (confirm("¿Ir a esta ubicación fuera de Panamá?")) {
-                    mymap.setView([lat, lon], 16);
-                    
-                    L.marker([lat, lon])
-                        .addTo(mymap)
-                        .bindPopup(`<b>⚠️ Fuera de Panamá</b><br>Código: ${input}`)
-                        .openPopup();
-                }
-            }
-            
-        } catch (error) {
-            alert("Error: " + error.message);
-            console.error(error);
-        }
-    }
-    
-    // ==================== 6. FUNCIÓN PARA PRUEBAS ====================
-    // Función para probar códigos que SÍ deberían estar en Panamá
-    function probarCodigosPanama() {
-        const codigosPrueba = [
-            "EAP3582",  // Cerca de Ciudad de Panamá
-            "MMM5000",  // Centro aproximado
-            "CCC2500",  // Zona central
-            "JJJ7500",  // Zona oriental
-            "AAA1000",  // Noroeste
-            "ZZZ9000"   // Sureste
-        ];
-        
-        console.log("=== PRUEBA DE CÓDIGOS EN PANAMÁ ===");
-        
-        codigosPrueba.forEach(codigo => {
-            try {
-                const coords = getCoordsFromPostalCode(codigo);
-                console.log(`${codigo}: ${coords.lat.toFixed(4)}, ${coords.lon.toFixed(4)}`);
-                
-                // Verificar si está en Panamá
-                const enPanama = (coords.lon >= LON_WEST && coords.lon <= LON_EAST && 
-                                 coords.lat >= LAT_SOUTH && coords.lat <= LAT_NORTH);
-                
-                console.log(`  ${enPanama ? '✅ EN PANAMÁ' : '❌ FUERA DE PANAMÁ'}`);
-                
-            } catch (e) {
-                console.log(`${codigo}: ERROR - ${e.message}`);
-            }
-        });
-    }
-    
-    // Ejecutar prueba al cargar
-    setTimeout(probarCodigosPanama, 1000);
-    
-    // ==================== 7. REJILLA VISUAL ====================
+
+    // 5. REJILLA
     function updateGrid() {
         gridLayer.clearLayers();
         if (mymap.getZoom() < 17) return;
-        
         const b = mymap.getBounds();
         const sX = 0.00045, sY = 0.00035;
-        
         for (let x = Math.floor(b.getWest()/sX)*sX; x <= b.getEast(); x += sX) {
             for (let y = Math.floor(b.getSouth()/sY)*sY; y <= b.getNorth(); y += sY) {
-                const clat = y + sY/2, clon = x + sX/2;
-                const code = getPostalCode(clat, clon);
-                
-                L.rectangle([[y, x], [y + sY, x + sX]], {
-                    color: "#3498db", 
-                    weight: 0.5, 
-                    fillOpacity: 0.05,
-                    interactive: false
-                }).addTo(gridLayer);
-                
+                const lat = y + sY/2, lon = x + sX/2;
+                const code = getPostalCode(lat, lon);
+                L.rectangle([[y, x], [y + sY, x + sX]], { color: "#3498db", weight: 0.5, fillOpacity: 0.03, interactive: false }).addTo(gridLayer);
                 if (mymap.getZoom() >= 18) {
-                    L.marker([clat, clon], {
-                        icon: L.divIcon({
-                            className: 'grid-label', 
-                            html: code, 
-                            iconSize: [60, 20]
-                        })
-                    }).addTo(gridLayer);
+                    L.marker([lat, lon], { icon: L.divIcon({ className: 'grid-label', html: code, iconSize: [60, 20] }), interactive: false }).addTo(gridLayer);
                 }
             }
         }
     }
-    
     mymap.on('moveend zoomend', updateGrid);
-    
-    // ==================== 8. INFORMACIÓN INICIAL ====================
-    console.log("=== SISTEMA PANGRID 7C INICIALIZADO ===");
-    console.log("Rango de Panamá:");
-    console.log(`  Longitud: ${LON_WEST}° a ${LON_EAST}°`);
-    console.log(`  Latitud: ${LAT_SOUTH}° a ${LAT_NORTH}°`);
-    console.log("Para probar, use códigos como: EAP3582, MMM5000, CCC2500");
-    
-    // Mostrar coordenadas actuales del centro
-    const center = mymap.getCenter();
-    const centerCode = getPostalCode(center.lat, center.lng);
-    console.log(`Centro actual: ${center.lat.toFixed(4)}, ${center.lng.toFixed(4)}`);
-    console.log(`Código en centro: ${centerCode}`);
 </script>
 </body>
 </html>
