@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>PanGrid 7C - Herramienta de Campo</title>
+    <title>PanGrid 7C - Sistema Postal</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     
@@ -12,44 +12,52 @@
 
     <style>
         body, html, #mapid { 
-            width: 100%; height: 100%; margin: 0; padding: 0; 
-            background: #f0f0f0;
+            width: 100%; height: 100%; margin: 0; padding: 0; background: #eee;
         }
 
-        /* Barra de búsqueda amigable para dedos */
+        /* BARRA DE BÚSQUEDA COMPACTA A LA DERECHA */
         .search-container {
-            position: absolute; top: 10px; right: 10px; left: 10px;
-            z-index: 1000; display: flex; gap: 5px;
-            background: white; padding: 5px; border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            position: absolute; 
+            top: 15px; 
+            right: 15px; 
+            z-index: 2000; 
+            display: flex; 
+            background: white; 
+            padding: 5px; 
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            height: 45px;
+            width: 280px; 
+            align-items: center;
         }
 
         input#search-input {
-            flex: 1; border: 1px solid #ccc; border-radius: 4px;
-            padding: 12px; font-size: 16px; outline: none;
+            flex: 1; border: none; padding: 0 10px; font-size: 14px; outline: none; width: 100%;
         }
 
         button#search-btn {
             background: #2c3e50; color: white; border: none;
-            padding: 0 20px; border-radius: 4px; font-weight: bold;
-            cursor: pointer;
+            padding: 8px 12px; border-radius: 5px; font-weight: bold; cursor: pointer;
         }
 
-        /* Estilo de los códigos en el mapa */
-        .grid-label {
-            font-size: 11px; font-weight: bold; color: #1a5276;
-            text-align: center; pointer-events: none;
-            text-shadow: 0 0 3px white, 0 0 5px white;
-        }
-
-        /* Botón de ubicación personalizado */
+        /* BOTÓN GPS PERSONALIZADO */
         .loc-button {
-            background: white; width: 40px; height: 40px;
+            position: absolute;
+            top: 75px; 
+            right: 15px; 
+            z-index: 2000;
+            background: white; 
+            width: 48px; height: 48px;
             display: flex; align-items: center; justify-content: center;
-            border-radius: 5px; border: 2px solid rgba(0,0,0,0.2);
-            cursor: pointer; font-size: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            border-radius: 8px; border: 1px solid rgba(0,0,0,0.1);
+            font-size: 24px; cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
         }
-        .loc-button:active { background: #e0e0e0; }
+
+        .grid-label {
+            font-size: 10px; font-weight: bold; color: #2980b9;
+            pointer-events: none; text-shadow: 0 0 2px white;
+        }
     </style>
 </head>
 <body>
@@ -62,13 +70,8 @@
 <div id="mapid"></div>
 
 <script>
-    // Inicializar mapa
-    const mymap = L.map('mapid', { 
-        zoomControl: false, // Quitamos el original para que no estorbe arriba
-        preferCanvas: true 
-    }).setView([8.98, -79.52], 13);
-
-    // Mover controles de zoom abajo a la derecha (mejor para móvil)
+    // 1. Configuración del Mapa
+    const mymap = L.map('mapid', { zoomControl: false }).setView([8.98, -79.52], 13);
     L.control.zoom({ position: 'bottomright' }).addTo(mymap);
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -76,20 +79,20 @@
     }).addTo(mymap);
 
     const gridLayer = L.layerGroup().addTo(mymap);
-    let rawGeoData;
-
-    // Capa de polígonos de estafetas
     const estafetasLayer = L.geoJSON(null, {
-        style: { color: "#2c3e50", weight: 1.5, fillOpacity: 0.08 }
+        style: { color: "#2c3e50", weight: 1.5, fillOpacity: 0.1 }
     }).addTo(mymap);
 
-    // Cargar Datos
+    let rawGeoData;
+    let userMarker; // Para el punto azul del GPS
+
+    // 2. Cargar Datos GeoJSON
     $.getJSON("estafetas.geojson", function(data) {
         rawGeoData = data;
         estafetasLayer.addData(data);
     });
 
-    // Algoritmo PanGrid 7C
+    // 3. Algoritmo PanGrid 7C
     function getPostalCode(lat, lon) {
         const ALFABETO = "ABCDEFGHJKLMNPQRSTUVWXYZ"; 
         const n_l = ALFABETO.length;
@@ -104,7 +107,49 @@
         return lll + String(y_val % 10000).padStart(4, '0');
     }
 
-    // Dibujar Rejilla y Etiquetas
+    // 4. Manejo de ubicación (GPS con punto azul)
+    const locControl = L.control({position: 'topright'});
+    locControl.onAdd = function() {
+        const btn = L.DomUtil.create('div', 'loc-button');
+        btn.innerHTML = '🎯';
+        btn.onclick = function(e) {
+            L.DomEvent.stopPropagation(e);
+            mymap.locate({setView: true, maxZoom: 18});
+        };
+        return btn;
+    };
+    locControl.addTo(mymap);
+
+    mymap.on('locationfound', function(e) {
+        if (userMarker) mymap.removeLayer(userMarker);
+        userMarker = L.circleMarker(e.latlng, {
+            radius: 9, fillColor: "#007bff", color: "#fff", weight: 3, opacity: 1, fillOpacity: 0.9
+        }).addTo(mymap).bindPopup("Estás aquí").openPopup();
+    });
+
+    // 5. Clic con Validación de Zona
+    mymap.on('click', function(e) {
+        let vm = null;
+        if (rawGeoData) {
+            const layers = leafletPip.pointInLayer([e.latlng.lng, e.latlng.lat], estafetasLayer);
+            if (layers.length > 0) vm = layers[0].feature.properties.VM_LEVEL;
+        }
+
+        if (vm) {
+            const s7 = getPostalCode(e.latlng.lat, e.latlng.lng);
+            L.popup().setLatLng(e.latlng).setContent(`
+                <div style="text-align:center;">
+                    <small>ESTAFETA</small><br><b>${vm}</b><br>
+                    <small>CÓDIGO POSTAL</small><br><b style="font-size:18px; color:#e67e22;">${s7}</b><br>
+                    <hr><code>${vm}-${s7}</code>
+                </div>
+            `).openOn(mymap);
+        } else {
+            L.popup().setLatLng(e.latlng).setContent("<b>Fuera de área de cobertura postal</b>").openOn(mymap);
+        }
+    });
+
+    // 6. Rejilla Dinámica
     function updateGrid() {
         gridLayer.clearLayers();
         const zoom = mymap.getZoom();
@@ -115,8 +160,7 @@
 
         for (let x = Math.floor(bounds.getWest()/stepX)*stepX; x <= bounds.getEast(); x += stepX) {
             for (let y = Math.floor(bounds.getSouth()/stepY)*stepY; y <= bounds.getNorth(); y += stepY) {
-                const cLat = y + stepY/2;
-                const cLon = x + stepX/2;
+                const cLat = y + stepY/2, cLon = x + stepX/2;
                 const code = getPostalCode(cLat, cLon);
 
                 L.rectangle([[y, x], [y + stepY, x + stepX]], {
@@ -125,69 +169,19 @@
 
                 if (zoom >= 18) {
                     L.marker([cLat, cLon], {
-                        icon: L.divIcon({
-                            className: 'grid-label',
-                            html: code,
-                            iconSize: [60, 20]
-                        })
+                        icon: L.divIcon({ className: 'grid-label', html: code, iconSize: [60, 20] })
                     }).addTo(gridLayer);
                 }
             }
         }
     }
 
-    // Función clic para el cartero
-    mymap.on('click', function(e) {
-        const s7 = getPostalCode(e.latlng.lat, e.latlng.lng);
-        let vm = "ZONA NO DEFINIDA";
-
-        if (rawGeoData) {
-            const layers = leafletPip.pointInLayer([e.latlng.lng, e.latlng.lat], estafetasLayer);
-            if (layers.length > 0) {
-                vm = layers[0].feature.properties.VM_LEVEL || "SIN NOMBRE";
-            }
-        }
-
-        L.popup()
-            .setLatLng(e.latlng)
-            .setContent(`
-                <div style="text-align:center; font-family:sans-serif;">
-                    <small>ESTAFETA</small><br><b>${vm}</b><br>
-                    <small>CÓDIGO POSTAL</small><br><b style="font-size:18px; color:#e67e22;">${s7}</b><br>
-                    <hr>
-                    <code style="background:#eee; padding:3px;">${vm}-${s7}</code>
-                </div>
-            `)
-            .openOn(mymap);
-    });
-
-    // Botón de Ubicación Real (GPS)
-    const locControl = L.control({position: 'topleft'});
-    locControl.onAdd = function() {
-        const btn = L.DomUtil.create('div', 'loc-button');
-        btn.innerHTML = '🎯';
-        btn.title = "Mi ubicación actual";
-        btn.onclick = function() {
-            mymap.locate({setView: true, maxZoom: 18});
-        };
-        return btn;
-    };
-    locControl.addTo(mymap);
-
-    // Manejar errores de ubicación
-    mymap.on('locationerror', function() {
-        alert("No se pudo acceder al GPS. Por favor activa la ubicación.");
-    });
-
-    // Buscador
+    // 7. Buscador
     document.getElementById('search-btn').onclick = function() {
         const val = document.getElementById('search-input').value.trim().toUpperCase();
-        document.getElementById('search-input').blur();
-        
         const s7 = val.includes('-') ? val.split('-')[1] : val;
         
         if (s7.length === 7) {
-            // Decodificador aproximado
             const ALFABETO = "ABCDEFGHJKLMNPQRSTUVWXYZ";
             const lll = s7.substring(0,3);
             const nnnn = parseInt(s7.substring(3,7));
@@ -197,10 +191,7 @@
             let lat = (nnnn / 10000) * 3.0 + 7.0;
 
             mymap.setView([lat, lon], 19);
-            L.circleMarker([lat, lon], {color: 'red', radius: 10}).addTo(mymap)
-             .bindPopup("Ubicación buscada: " + val).openPopup();
-        } else {
-            alert("Formato de código inválido (Debe tener 7 letras/números)");
+            L.marker([lat, lon]).addTo(mymap).bindPopup("Buscado: " + val).openPopup();
         }
     };
 
