@@ -144,26 +144,48 @@
 
     // 4. BUSCADOR (Tu lógica corregida)
     document.getElementById('search-btn').onclick = function() {
-        const s7 = document.getElementById('search-input').value.trim().toUpperCase();
-        if (s7.length === 7) {
-            const ALFABETO = "ABCDEFGHJKLMNPQRSTUVWXYZ";
-            const lll = s7.substring(0, 3);
-            const nnnn = parseInt(s7.substring(3));
-
-            let v_x = 0;
-            for(let i = 0; i < 3; i++) v_x = v_x * 24 + ALFABETO.indexOf(lll[i]);
-
-            let lon = ((v_x + 0.5) / 999999) * (-77.15 - (-83.05)) + (-83.05);
-            let lat = ((nnnn + 0.5) / 10000) * (10.0 - 7.0) + 7.0;
-
-            mymap.setView([lat, lon], 19);
-            
-            // Limpiar marcador anterior
-            gridLayer.eachLayer(l => { if(l instanceof L.Marker && l.options.icon === undefined) gridLayer.removeLayer(l); });
-
-            L.marker([lat, lon]).addTo(mymap).bindPopup("<b>" + s7 + "</b>").openPopup();
-        }
-    };
+	    const s7 = document.getElementById('search-input').value.trim().toUpperCase();
+	    
+	    // Validación de formato: 3 letras y 4 números
+	    if (/^[A-Z]{3}\d{4}$/.test(s7)) {
+	        const ALFABETO = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+	        const lll = s7.substring(0, 3);
+	        const nnnn = parseInt(s7.substring(3));
+	
+	        // 1. Convertir Base 24 (Letras) a valor numérico X
+	        let v_x = 0;
+	        for(let i = 0; i < 3; i++) {
+	            let index = ALFABETO.indexOf(lll[i]);
+	            if (index === -1) return; // Letra no válida
+	            v_x = v_x * 24 + index;
+	        }
+	
+	        // 2. Cálculo de Coordenadas (Ajuste de precisión)
+	        // Usamos la constante del alfabeto al cubo (24^3 = 13824) para la escala de longitud
+	        let lon = (v_x / 13824) * (-77.15 - (-83.05)) + (-83.05);
+	        let lat = (nnnn / 10000) * (10.0 - 7.0) + 7.0;
+	
+	        // 3. Centrar en el mapa
+	        mymap.setView([lat, lon], 19);
+	        
+	        // Limpiar marcadores previos
+	        mymap.eachLayer(l => { 
+	            if(l instanceof L.Marker) mymap.removeLayer(l); 
+	        });
+	
+	        // Crear marcador y disparar el evento click automáticamente para que aparezca el popup naranja
+	        const marker = L.marker([lat, lon]).addTo(mymap);
+	        
+	        // Simulamos un click en el mapa en esa posición para que tu lógica de VM_LEVEL funcione
+	        mymap.fireEvent('click', {
+	            latlng: L.latLng(lat, lon),
+	            layerPoint: mymap.latLngToLayerPoint([lat, lon]),
+	            containerPoint: mymap.latLngToContainerPoint([lat, lon])
+	        });
+	    } else {
+	        alert("Formato de código inválido (Ejemplo: ADE4321)");
+	    }
+	};
 
     // 5. REJILLA
     function updateGrid() {
@@ -187,5 +209,6 @@
 </script>
 </body>
 </html>
+
 
 
