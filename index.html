@@ -19,20 +19,37 @@
         /* Barra de búsqueda amigable para dedos */
         .search-container {
             position: absolute; top: 10px; right: 10px; left: 10px;
-            z-index: 1000; display: flex; gap: 5px;
-            background: white; padding: 5px; border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+			z-index: 1000; display: flex; gap: 5px;
+			background: white; padding: 5px; border-radius: 8px;
+			box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+			height: 45px; /* Altura fija para que se vea uniforme */
+			align-items: center; /* Centra verticalmente los elementos */
         }
 
         input#search-input {
-            flex: 1; border: 1px solid #ccc; border-radius: 4px;
-            padding: 12px; font-size: 16px; outline: none;
+            flex: 1; 
+			border: 1px solid #ccc; 
+			border-radius: 4px;
+			padding: 8px 12px; 
+			font-size: 16px; 
+			outline: none;
+			height: 100%; /* Ocupa todo el alto del contenedor */
+			box-sizing: border-box;
         }
 
         button#search-btn {
-            background: #2c3e50; color: white; border: none;
-            padding: 0 20px; border-radius: 4px; font-weight: bold;
-            cursor: pointer;
+            background: #2c3e50; 
+			color: white; 
+			border: none;
+			height: 100%; /* Ocupa todo el alto del contenedor */
+			padding: 0 15px; /* Espacio a los lados del texto */
+			border-radius: 4px; 
+			font-weight: bold;
+			cursor: pointer;
+			min-width: 80px; /* Evita que se vea muy pequeño o muy grande */
+			display: flex;
+			align-items: center;
+			justify-content: center;
         }
 
         /* Estilo de los códigos en el mapa */
