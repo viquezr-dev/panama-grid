@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>PanGrid 7C - Buscador Oficial</title>
+    <title>PanGrid 7C - Sistema Completo</title>
     <meta charset="utf-8" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
@@ -16,13 +16,14 @@
         }
         input#search-input { width: 200px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
         button#search-btn { background: #2c3e50; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; }
-        .grid-label { font-size: 10px; font-weight: bold; color: #2980b9; pointer-events: none; }
+        /* Estilo para el código que flota en el grid */
+        .grid-label { font-size: 10px; font-weight: bold; color: #2980b9; pointer-events: none; text-shadow: 0 0 2px white; }
     </style>
 </head>
 <body>
 
 <div class="search-container">
-    <input type="text" id="search-input" placeholder="A6399-QSJ6872">
+    <input type="text" id="search-input" placeholder="Ej: A6399-QSJ6872">
     <button id="search-btn">BUSCAR</button>
 </div>
 
@@ -33,22 +34,26 @@
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mymap);
 
     const gridLayer = L.layerGroup().addTo(mymap);
+    let rawGeoData; // Para buscar el VM_LEVEL al hacer clic
+
+    // Capa visual de las estafetas
     const estafetasLayer = L.geoJSON(null, {
-        style: { color: "#2c3e50", weight: 2, fillOpacity: 0.1 }
+        style: { color: "#2c3e50", weight: 1.5, fillOpacity: 0.1 },
+        onEachFeature: function(feature, layer) {
+            // Esto hace que si pasas el mouse o tocas, diga el nombre de la estafeta
+            if (feature.properties && feature.properties.VM_LEVEL) {
+                layer.bindTooltip(feature.properties.VM_LEVEL, {sticky: true});
+            }
+        }
     }).addTo(mymap);
 
-    // --- CARGAR GEOJSON (Asegúrate que el nombre coincida en GitHub) ---
-    $.getJSON("estafetas.geojson")
-        .done(function(data) {
-            console.log("GeoJSON cargado con éxito");
-            estafetasLayer.addData(data);
-        })
-        .fail(function() {
-            console.error("No se pudo encontrar el archivo estafetas.geojson");
-            alert("Error: No se encontró el archivo de estafetas en el servidor.");
-        });
+    // --- CARGAR GEOJSON ---
+    $.getJSON("estafetas.geojson", function(data) {
+        rawGeoData = data;
+        estafetasLayer.addData(data);
+    });
 
-    // --- LÓGICA DE CÓDIGO POSTAL ---
+    // --- LÓGICA DE ALGORITMO (LLLNNNN) ---
     function getPostalCode(lat, lon) {
         const ALFABETO = "ABCDEFGHJKLMNPQRSTUVWXYZ"; 
         const n_l = ALFABETO.length;
@@ -63,6 +68,66 @@
         return lll + String(y_val % 10000).padStart(4, '0');
     }
 
+    // --- DIBUJAR REJILLA CON TEXTO ---
+    function updateGrid() {
+        gridLayer.clearLayers();
+        const zoom = mymap.getZoom();
+        
+        // Solo mostrar rejilla en zoom alto (17 o más)
+        if (zoom < 17) return;
+
+        const bounds = mymap.getBounds();
+        const stepX = 0.00045, stepY = 0.00035;
+
+        for (let x = Math.floor(bounds.getWest()/stepX)*stepX; x <= bounds.getEast(); x += stepX) {
+            for (let y = Math.floor(bounds.getSouth()/stepY)*stepY; y <= bounds.getNorth(); y += stepY) {
+                const centerLat = y + stepY/2;
+                const centerLon = x + stepX/2;
+                const code = getPostalCode(centerLat, centerLon);
+
+                // Dibujar el cuadro
+                L.rectangle([[y, x], [y + stepY, x + stepX]], {
+                    color: "#3498db", weight: 0.5, fillOpacity: 0.05, interactive: false
+                }).addTo(gridLayer);
+
+                // Poner el texto (solo en zoom 18+)
+                if (zoom >= 18) {
+                    L.marker([centerLat, centerLon], {
+                        icon: L.divIcon({
+                            className: 'grid-label',
+                            html: code,
+                            iconSize: [50, 10]
+                        })
+                    }).addTo(gridLayer);
+                }
+            }
+        }
+    }
+
+    // --- CLIC EN EL MAPA ---
+    mymap.on('click', function(e) {
+        const s7 = getPostalCode(e.latlng.lat, e.latlng.lng);
+        let vm = "FUERA DE ÁREA";
+
+        // Buscar en qué polígono cayó el clic
+        if (rawGeoData) {
+            // Usamos una función simple de Leaflet para detectar la capa
+            const layers = leafletPip.pointInLayer([e.latlng.lng, e.latlng.lat], estafetasLayer);
+            if (layers.length > 0) {
+                vm = layers[0].feature.properties.VM_LEVEL;
+            }
+        }
+
+        L.popup()
+            .setLatLng(e.latlng)
+            .setContent(`<b>Estafeta:</b> ${vm}<br><b>Código:</b> ${s7}<br><hr><code>${vm}-${s7}</code>`)
+            .openOn(mymap);
+    });
+
+    // Eventos de actualización
+    mymap.on('moveend zoomend', updateGrid);
+
+    // --- REVERSA PARA BUSCADOR ---
     function decodePostal7Char(code) {
         const ALFABETO = "ABCDEFGHJKLMNPQRSTUVWXYZ";
         const n_l = ALFABETO.length;
@@ -70,39 +135,23 @@
         let nnnn = parseInt(code.substring(3, 7));
         let v_x = 0;
         for (let i = 0; i < 3; i++) { v_x = v_x * n_l + ALFABETO.indexOf(lll[i]); }
-        let lon = (v_x / (999999)) * (-77.15 - (-83.05)) + (-83.05);
-        let lat = (nnnn / 10000) * (3.0) + 7.0;
+        let lon = (v_x / 999999) * (-77.15 - (-83.05)) + (-83.05);
+        let lat = (nnnn / 10000) * 3.0 + 7.0;
         return [lat, lon];
     }
 
-    // --- BÚSQUEDA ---
     document.getElementById('search-btn').onclick = function() {
-        const query = document.getElementById('search-input').value.trim().toUpperCase();
-        const parts = query.split('-');
-        const s7 = parts.length > 1 ? parts[1] : parts[0];
-
+        const val = document.getElementById('search-input').value.toUpperCase();
+        const s7 = val.includes('-') ? val.split('-')[1] : val;
         if (s7.length === 7) {
             const coords = decodePostal7Char(s7);
-            mymap.setView(coords, 18);
-            L.marker(coords).addTo(mymap).bindPopup(`<b>${query}</b>`).openPopup();
+            mymap.setView(coords, 19);
+            L.marker(coords).addTo(mymap).bindPopup(`<b>Resultado:</b> ${val}`).openPopup();
         }
     };
-
-    // --- REJILLA DINÁMICA ---
-    function updateGrid() {
-        gridLayer.clearLayers();
-        if (mymap.getZoom() < 17) return;
-        const bounds = mymap.getBounds();
-        const stepX = 0.00045, stepY = 0.00035;
-        for (let x = Math.floor(bounds.getWest()/stepX)*stepX; x <= bounds.getEast(); x += stepX) {
-            for (let y = Math.floor(bounds.getSouth()/stepY)*stepY; y <= bounds.getNorth(); y += stepY) {
-                const code = getPostalCode(y + stepY/2, x + stepX/2);
-                L.rectangle([[y, x], [y + stepY, x + stepX]], {color: "#3498db", weight: 1, fillOpacity: 0.05}).addTo(gridLayer);
-            }
-        }
-    }
-
-    mymap.on('moveend zoomend', updateGrid);
 </script>
+
+<script src="https://unpkg.com/@mapbox/leaflet-pip@latest/leaflet-pip.js"></script>
+
 </body>
 </html>
