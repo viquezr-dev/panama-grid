@@ -88,7 +88,7 @@
 }
 
     // 3. EVENTO CLIC CORREGIDO
-    map.on("click", function (e) {
+    mymap.on("click", function (e) {
 
 	    let vm = "ZONA NO DEFINIDA";
 	
@@ -106,7 +106,7 @@
 	        L.popup()
 	            .setLatLng(e.latlng)
 	            .setContent("<b>ZONA NO DEFINIDA</b>")
-	            .openOn(map);
+	            .openOn(mymap);
 	        return;
 	    }
 	
@@ -123,7 +123,7 @@
 	                </div>
 	            </div>
 	        `)
-	        .openOn(map);
+	        .openOn(mymap);
 	});
 
 		const cod7 = generarCOD7(e.latlng.lat, e.latlng.lng);
@@ -200,4 +200,3 @@
 </script>
 </body>
 </html>
-
