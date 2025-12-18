@@ -1,27 +1,54 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>PanGrid 7C - Solución Clic</title>
+    <title>PanGrid 7C – Visor Oficial</title>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"/>
+
     <style>
-        body, html, #mapid { width: 100%; height: 100%; margin: 0; padding: 0; }
+        html, body, #mapid { height: 100%; margin: 0; }
         .search-container {
-            position: absolute; top: 10px; right: 10px; z-index: 2000;
-            display: flex; background: white; padding: 5px; border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.3); width: 280px;
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 2000;
+            display: flex;
+            background: white;
+            padding: 6px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,.3);
         }
-        input#search-input { flex: 1; border: none; padding: 10px; font-size: 16px; outline: none; }
-        button#search-btn { background: #2c3e50; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; }
-        .grid-label { font-size: 10px; font-weight: bold; color: #2980b9; pointer-events: none; text-shadow: 0 0 2px white; }
-        .leaflet-popup-content { text-align: center; font-family: sans-serif; }
+        #search-input {
+            border: none;
+            outline: none;
+            padding: 8px;
+            font-size: 15px;
+            width: 140px;
+        }
+        #search-btn {
+            background: #2c3e50;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .grid-label {
+            font-size: 10px;
+            font-weight: bold;
+            color: #1f4e79;
+            pointer-events: none;
+            text-shadow: 0 0 2px white;
+        }
     </style>
 </head>
+
 <body>
 
 <div class="search-container">
-    <input type="text" id="search-input" placeholder="Ej: EAP3582">
+    <input id="search-input" placeholder="Ej: STL8532">
     <button id="search-btn">IR</button>
 </div>
 
@@ -32,108 +59,144 @@
 <script src="https://unpkg.com/@mapbox/leaflet-pip@latest/leaflet-pip.js"></script>
 
 <script>
-    const mymap = L.map('mapid', { zoomControl: false }).setView([8.98, -79.52], 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mymap);
+/* ============================================================
+   CONFIGURACIÓN OFICIAL (IGUAL QUE QGIS)
+============================================================ */
 
-    const gridLayer = L.layerGroup().addTo(mymap);
-    let estafetasLayer;
-    let rawGeoData = null;
+const CELL_X = 0.00045;
+const CELL_Y = 0.00035;
+const ALFABETO = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
 
-    // 1. CARGA SEGURA DEL GEOJSON
-    $.getJSON("estafetas.geojson", function(data) {
-        rawGeoData = data;
-        estafetasLayer = L.geoJSON(data, {
-            style: { color: "#2c3e50", weight: 2, fillOpacity: 0.1 }
-        }).addTo(mymap);
-        console.log("GeoJSON cargado correctamente");
-    }).fail(function() {
-        console.error("Error cargando estafetas.geojson. Verifica el nombre del archivo.");
-    });
+/* ============================================================
+   MAPA
+============================================================ */
 
-    // 2. ALGORITMO POSTAL
-    function getPostalCode(lat, lon) {
-        const ALFABETO = "ABCDEFGHJKLMNPQRSTUVWXYZ"; 
-        let x_norm = (lon - (-83.05)) / (-77.15 - (-83.05));
-        let v_x = Math.floor(x_norm * 999999);
-        let lll = "";
-        for (let i = 0; i < 3; i++) {
-            lll = ALFABETO[Math.max(0, Math.min(v_x % 24, 23))] + lll;
-            v_x = Math.floor(v_x / 24);
-        }
-        let y_norm = (lat - 7.0) / (10.0 - 7.0);
-        let y_val = Math.floor(y_norm * 9999999);
-        return lll + String(y_val % 10000).padStart(4, '0');
+const map = L.map("mapid").setView([8.98, -79.52], 13);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
+
+const gridLayer = L.layerGroup().addTo(map);
+let estafetasLayer = null;
+let rawGeoData = null;
+
+/* ============================================================
+   CARGA DE ESTAFETAS
+============================================================ */
+
+$.getJSON("estafetas.geojson", function (data) {
+    rawGeoData = data;
+    estafetasLayer = L.geoJSON(data, {
+        style: { color: "#2c3e50", weight: 2, fillOpacity: 0.1 }
+    }).addTo(map);
+    console.log("✔ Estafetas cargadas");
+}).fail(function () {
+    console.error("❌ Error cargando estafetas.geojson");
+});
+
+/* ============================================================
+   GENERADOR COD_7CAR (ESPEJO QGIS)
+============================================================ */
+
+function getCod7Car(lat, lon) {
+
+    const ix = Math.floor(lon / CELL_X);
+    const iy = Math.floor(lat / CELL_Y);
+
+    let h = (ix * 73856093) ^ (iy * 19349663);
+    h = Math.abs(h);
+
+    let lll = "";
+    for (let i = 0; i < 3; i++) {
+        lll = ALFABETO[h % 32] + lll;
+        h = Math.floor(h / 32);
     }
 
-    // 3. EVENTO CLIC CORREGIDO
-    mymap.on('click', function(e) {
-        console.log("Clic detectado en:", e.latlng.lat, e.latlng.lng);
-        
-        let nombreEstafeta = "ZONA NO DEFINIDA";
-        
-        // Intentar detectar el polígono bajo el clic
-        if (estafetasLayer && rawGeoData) {
-            const match = leafletPip.pointInLayer([e.latlng.lng, e.latlng.lat], estafetasLayer);
-            if (match.length > 0) {
-                nombreEstafeta = match[0].feature.properties.VM_LEVEL || "ESTAFETA ENCONTRADA";
-            }
+    const nnnn = (ix + iy) % 10000;
+    return lll + String(nnnn).padStart(4, "0");
+}
+
+/* ============================================================
+   CLICK → CÓDIGO POSTAL
+============================================================ */
+
+map.on("click", function (e) {
+
+    let vm = "ZONA NO DEFINIDA";
+
+    if (estafetasLayer && rawGeoData) {
+        const hit = leafletPip.pointInLayer(
+            [e.latlng.lng, e.latlng.lat],
+            estafetasLayer
+        );
+        if (hit.length > 0) {
+            vm = hit[0].feature.properties.VM_LEVEL || vm;
         }
+    }
 
-        const codigo = getPostalCode(e.latlng.lat, e.latlng.lng);
+    const cod7 = getCod7Car(e.latlng.lat, e.latlng.lng);
+    const postal = vm + "-" + cod7;
 
-        // Forzar la aparición del Popup
-        L.popup()
-            .setLatLng(e.latlng)
-            .setContent(`
-                <div style="padding:5px;">
-                    <strong style="color:#2c3e50;">${nombreEstafeta}</strong><br>
-                    <span style="font-size:22px; font-weight:bold; color:#e67e22;">${codigo}</span>
-                </div>
-            `)
-            .openOn(mymap);
-    });
+    L.popup()
+        .setLatLng(e.latlng)
+        .setContent(`
+            <b>${vm}</b><br>
+            <span style="font-size:22px;font-weight:bold">${postal}</span>
+        `)
+        .openOn(map);
+});
 
-    // 4. BUSCADOR (Tu lógica corregida)
-    document.getElementById('search-btn').onclick = function() {
-        const s7 = document.getElementById('search-input').value.trim().toUpperCase();
-        if (s7.length === 7) {
-            const ALFABETO = "ABCDEFGHJKLMNPQRSTUVWXYZ";
-            const lll = s7.substring(0, 3);
-            const nnnn = parseInt(s7.substring(3));
+/* ============================================================
+   BUSCADOR (REFERENCIAL)
+============================================================ */
 
-            let v_x = 0;
-            for(let i = 0; i < 3; i++) v_x = v_x * 24 + ALFABETO.indexOf(lll[i]);
+document.getElementById("search-btn").onclick = function () {
+    const s7 = document.getElementById("search-input").value.trim().toUpperCase();
+    if (s7.length !== 7) return;
 
-            let lon = ((v_x + 0.5) / 999999) * (-77.15 - (-83.05)) + (-83.05);
-            let lat = ((nnnn + 0.5) / 10000) * (10.0 - 7.0) + 7.0;
+    // Aproximación visual (no reversible exacto)
+    map.setZoom(19);
+};
 
-            mymap.setView([lat, lon], 19);
-            
-            // Limpiar marcador anterior
-            gridLayer.eachLayer(l => { if(l instanceof L.Marker && l.options.icon === undefined) gridLayer.removeLayer(l); });
+/* ============================================================
+   GRID VISUAL
+============================================================ */
 
-            L.marker([lat, lon]).addTo(mymap).bindPopup("<b>" + s7 + "</b>").openPopup();
-        }
-    };
+function updateGrid() {
 
-    // 5. REJILLA
-    function updateGrid() {
-        gridLayer.clearLayers();
-        if (mymap.getZoom() < 17) return;
-        const b = mymap.getBounds();
-        const sX = 0.00045, sY = 0.00035;
-        for (let x = Math.floor(b.getWest()/sX)*sX; x <= b.getEast(); x += sX) {
-            for (let y = Math.floor(b.getSouth()/sY)*sY; y <= b.getNorth(); y += sY) {
-                const lat = y + sY/2, lon = x + sX/2;
-                const code = getPostalCode(lat, lon);
-                L.rectangle([[y, x], [y + sY, x + sX]], { color: "#3498db", weight: 0.5, fillOpacity: 0.03, interactive: false }).addTo(gridLayer);
-                if (mymap.getZoom() >= 18) {
-                    L.marker([lat, lon], { icon: L.divIcon({ className: 'grid-label', html: code, iconSize: [60, 20] }), interactive: false }).addTo(gridLayer);
-                }
+    gridLayer.clearLayers();
+    if (map.getZoom() < 17) return;
+
+    const b = map.getBounds();
+
+    for (let x = Math.floor(b.getWest()/CELL_X)*CELL_X; x <= b.getEast(); x += CELL_X) {
+        for (let y = Math.floor(b.getSouth()/CELL_Y)*CELL_Y; y <= b.getNorth(); y += CELL_Y) {
+
+            const lat = y + CELL_Y/2;
+            const lon = x + CELL_X/2;
+            const code = getCod7Car(lat, lon);
+
+            L.rectangle([[y, x], [y+CELL_Y, x+CELL_X]], {
+                color: "#3498db",
+                weight: 0.5,
+                fillOpacity: 0.03,
+                interactive: false
+            }).addTo(gridLayer);
+
+            if (map.getZoom() >= 18) {
+                L.marker([lat, lon], {
+                    icon: L.divIcon({
+                        className: "grid-label",
+                        html: code,
+                        iconSize: [60, 20]
+                    }),
+                    interactive: false
+                }).addTo(gridLayer);
             }
         }
     }
-    mymap.on('moveend zoomend', updateGrid);
+}
+
+map.on("moveend zoomend", updateGrid);
 </script>
+
 </body>
 </html>
