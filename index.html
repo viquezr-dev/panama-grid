@@ -1,59 +1,95 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>PanGrid 7C - Sistema Completo</title>
+    <title>PanGrid 7C - Herramienta de Campo</title>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://unpkg.com/@mapbox/leaflet-pip@latest/leaflet-pip.js"></script>
+
     <style>
-        body { margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
-        #mapid { width: 100vw; height: 100vh; }
-        .search-container {
-            position: absolute; top: 20px; right: 20px; z-index: 1000;
-            background: white; padding: 10px; border-radius: 8px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2); display: flex; gap: 10px;
+        body, html, #mapid { 
+            width: 100%; height: 100%; margin: 0; padding: 0; 
+            background: #f0f0f0;
         }
-        input#search-input { width: 200px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
-        button#search-btn { background: #2c3e50; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; }
-        /* Estilo para el código que flota en el grid */
-        .grid-label { font-size: 10px; font-weight: bold; color: #2980b9; pointer-events: none; text-shadow: 0 0 2px white; }
+
+        /* Barra de búsqueda amigable para dedos */
+        .search-container {
+            position: absolute; top: 10px; right: 10px; left: 10px;
+            z-index: 1000; display: flex; gap: 5px;
+            background: white; padding: 5px; border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        input#search-input {
+            flex: 1; border: 1px solid #ccc; border-radius: 4px;
+            padding: 12px; font-size: 16px; outline: none;
+        }
+
+        button#search-btn {
+            background: #2c3e50; color: white; border: none;
+            padding: 0 20px; border-radius: 4px; font-weight: bold;
+            cursor: pointer;
+        }
+
+        /* Estilo de los códigos en el mapa */
+        .grid-label {
+            font-size: 11px; font-weight: bold; color: #1a5276;
+            text-align: center; pointer-events: none;
+            text-shadow: 0 0 3px white, 0 0 5px white;
+        }
+
+        /* Botón de ubicación personalizado */
+        .loc-button {
+            background: white; width: 40px; height: 40px;
+            display: flex; align-items: center; justify-content: center;
+            border-radius: 5px; border: 2px solid rgba(0,0,0,0.2);
+            cursor: pointer; font-size: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .loc-button:active { background: #e0e0e0; }
     </style>
 </head>
 <body>
 
 <div class="search-container">
-    <input type="text" id="search-input" placeholder="Ej: A6399-QSJ6872">
-    <button id="search-btn">BUSCAR</button>
+    <input type="text" id="search-input" placeholder="Buscar LLLNNNN...">
+    <button id="search-btn">IR</button>
 </div>
 
 <div id="mapid"></div>
 
 <script>
-    const mymap = L.map('mapid', { preferCanvas: true }).setView([8.98, -79.52], 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mymap);
+    // Inicializar mapa
+    const mymap = L.map('mapid', { 
+        zoomControl: false, // Quitamos el original para que no estorbe arriba
+        preferCanvas: true 
+    }).setView([8.98, -79.52], 13);
 
-    const gridLayer = L.layerGroup().addTo(mymap);
-    let rawGeoData; // Para buscar el VM_LEVEL al hacer clic
+    // Mover controles de zoom abajo a la derecha (mejor para móvil)
+    L.control.zoom({ position: 'bottomright' }).addTo(mymap);
 
-    // Capa visual de las estafetas
-    const estafetasLayer = L.geoJSON(null, {
-        style: { color: "#2c3e50", weight: 1.5, fillOpacity: 0.1 },
-        onEachFeature: function(feature, layer) {
-            // Esto hace que si pasas el mouse o tocas, diga el nombre de la estafeta
-            if (feature.properties && feature.properties.VM_LEVEL) {
-                layer.bindTooltip(feature.properties.VM_LEVEL, {sticky: true});
-            }
-        }
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap'
     }).addTo(mymap);
 
-    // --- CARGAR GEOJSON ---
+    const gridLayer = L.layerGroup().addTo(mymap);
+    let rawGeoData;
+
+    // Capa de polígonos de estafetas
+    const estafetasLayer = L.geoJSON(null, {
+        style: { color: "#2c3e50", weight: 1.5, fillOpacity: 0.08 }
+    }).addTo(mymap);
+
+    // Cargar Datos
     $.getJSON("estafetas.geojson", function(data) {
         rawGeoData = data;
         estafetasLayer.addData(data);
     });
 
-    // --- LÓGICA DE ALGORITMO (LLLNNNN) ---
+    // Algoritmo PanGrid 7C
     function getPostalCode(lat, lon) {
         const ALFABETO = "ABCDEFGHJKLMNPQRSTUVWXYZ"; 
         const n_l = ALFABETO.length;
@@ -68,12 +104,10 @@
         return lll + String(y_val % 10000).padStart(4, '0');
     }
 
-    // --- DIBUJAR REJILLA CON TEXTO ---
+    // Dibujar Rejilla y Etiquetas
     function updateGrid() {
         gridLayer.clearLayers();
         const zoom = mymap.getZoom();
-        
-        // Solo mostrar rejilla en zoom alto (17 o más)
         if (zoom < 17) return;
 
         const bounds = mymap.getBounds();
@@ -81,22 +115,20 @@
 
         for (let x = Math.floor(bounds.getWest()/stepX)*stepX; x <= bounds.getEast(); x += stepX) {
             for (let y = Math.floor(bounds.getSouth()/stepY)*stepY; y <= bounds.getNorth(); y += stepY) {
-                const centerLat = y + stepY/2;
-                const centerLon = x + stepX/2;
-                const code = getPostalCode(centerLat, centerLon);
+                const cLat = y + stepY/2;
+                const cLon = x + stepX/2;
+                const code = getPostalCode(cLat, cLon);
 
-                // Dibujar el cuadro
                 L.rectangle([[y, x], [y + stepY, x + stepX]], {
-                    color: "#3498db", weight: 0.5, fillOpacity: 0.05, interactive: false
+                    color: "#3498db", weight: 0.5, fillOpacity: 0.02, interactive: false
                 }).addTo(gridLayer);
 
-                // Poner el texto (solo en zoom 18+)
                 if (zoom >= 18) {
-                    L.marker([centerLat, centerLon], {
+                    L.marker([cLat, cLon], {
                         icon: L.divIcon({
                             className: 'grid-label',
                             html: code,
-                            iconSize: [50, 10]
+                            iconSize: [60, 20]
                         })
                     }).addTo(gridLayer);
                 }
@@ -104,54 +136,75 @@
         }
     }
 
-    // --- CLIC EN EL MAPA ---
+    // Función clic para el cartero
     mymap.on('click', function(e) {
         const s7 = getPostalCode(e.latlng.lat, e.latlng.lng);
-        let vm = "FUERA DE ÁREA";
+        let vm = "ZONA NO DEFINIDA";
 
-        // Buscar en qué polígono cayó el clic
         if (rawGeoData) {
-            // Usamos una función simple de Leaflet para detectar la capa
             const layers = leafletPip.pointInLayer([e.latlng.lng, e.latlng.lat], estafetasLayer);
             if (layers.length > 0) {
-                vm = layers[0].feature.properties.VM_LEVEL;
+                vm = layers[0].feature.properties.VM_LEVEL || "SIN NOMBRE";
             }
         }
 
         L.popup()
             .setLatLng(e.latlng)
-            .setContent(`<b>Estafeta:</b> ${vm}<br><b>Código:</b> ${s7}<br><hr><code>${vm}-${s7}</code>`)
+            .setContent(`
+                <div style="text-align:center; font-family:sans-serif;">
+                    <small>ESTAFETA</small><br><b>${vm}</b><br>
+                    <small>CÓDIGO POSTAL</small><br><b style="font-size:18px; color:#e67e22;">${s7}</b><br>
+                    <hr>
+                    <code style="background:#eee; padding:3px;">${vm}-${s7}</code>
+                </div>
+            `)
             .openOn(mymap);
     });
 
-    // Eventos de actualización
-    mymap.on('moveend zoomend', updateGrid);
+    // Botón de Ubicación Real (GPS)
+    const locControl = L.control({position: 'topleft'});
+    locControl.onAdd = function() {
+        const btn = L.DomUtil.create('div', 'loc-button');
+        btn.innerHTML = '🎯';
+        btn.title = "Mi ubicación actual";
+        btn.onclick = function() {
+            mymap.locate({setView: true, maxZoom: 18});
+        };
+        return btn;
+    };
+    locControl.addTo(mymap);
 
-    // --- REVERSA PARA BUSCADOR ---
-    function decodePostal7Char(code) {
-        const ALFABETO = "ABCDEFGHJKLMNPQRSTUVWXYZ";
-        const n_l = ALFABETO.length;
-        let lll = code.substring(0, 3);
-        let nnnn = parseInt(code.substring(3, 7));
-        let v_x = 0;
-        for (let i = 0; i < 3; i++) { v_x = v_x * n_l + ALFABETO.indexOf(lll[i]); }
-        let lon = (v_x / 999999) * (-77.15 - (-83.05)) + (-83.05);
-        let lat = (nnnn / 10000) * 3.0 + 7.0;
-        return [lat, lon];
-    }
+    // Manejar errores de ubicación
+    mymap.on('locationerror', function() {
+        alert("No se pudo acceder al GPS. Por favor activa la ubicación.");
+    });
 
+    // Buscador
     document.getElementById('search-btn').onclick = function() {
-        const val = document.getElementById('search-input').value.toUpperCase();
+        const val = document.getElementById('search-input').value.trim().toUpperCase();
+        document.getElementById('search-input').blur();
+        
         const s7 = val.includes('-') ? val.split('-')[1] : val;
+        
         if (s7.length === 7) {
-            const coords = decodePostal7Char(s7);
-            mymap.setView(coords, 19);
-            L.marker(coords).addTo(mymap).bindPopup(`<b>Resultado:</b> ${val}`).openPopup();
+            // Decodificador aproximado
+            const ALFABETO = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+            const lll = s7.substring(0,3);
+            const nnnn = parseInt(s7.substring(3,7));
+            let vx = 0;
+            for(let i=0; i<3; i++) vx = vx * ALFABETO.length + ALFABETO.indexOf(lll[i]);
+            let lon = (vx / 999999) * (-77.15 - (-83.05)) + (-83.05);
+            let lat = (nnnn / 10000) * 3.0 + 7.0;
+
+            mymap.setView([lat, lon], 19);
+            L.circleMarker([lat, lon], {color: 'red', radius: 10}).addTo(mymap)
+             .bindPopup("Ubicación buscada: " + val).openPopup();
+        } else {
+            alert("Formato de código inválido (Debe tener 7 letras/números)");
         }
     };
+
+    mymap.on('moveend zoomend', updateGrid);
 </script>
-
-<script src="https://unpkg.com/@mapbox/leaflet-pip@latest/leaflet-pip.js"></script>
-
 </body>
 </html>
