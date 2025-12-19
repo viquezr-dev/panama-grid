@@ -136,27 +136,36 @@ function generarCOD7(lat, lon) {
 // 6. Clic y Buscador
 mymap.on("click", function (e) {
     let vm = "ZONA NO DEFINIDA";
+    
+    // 1. Buscar siempre el polígono (VM_LEVEL)
     if (rawGeoData) {
+        // Usamos una capa temporal para el PIP para asegurar precisión
         const hit = leafletPip.pointInLayer([e.latlng.lng, e.latlng.lat], L.geoJSON(rawGeoData));
         if (hit.length > 0) vm = hit[0].feature.properties.VM_LEVEL || "ZONA REGISTRADA";
     }
-    const cod7 = generarCOD7(e.latlng.lat, e.latlng.lng);
-    L.popup().setLatLng(e.latlng)
-        .setContent(`<b>${vm}</b><br><span style="font-size:20px; color:#e67e22; font-weight:bold;">${cod7}</span>`)
-        .openOn(mymap);
-});
 
-document.getElementById('search-btn').onclick = function() {
-    const s7 = document.getElementById('search-input').value.trim().toUpperCase();
-    if (!/^[A-Z]{3}\d{4}$/.test(s7)) { alert("Ejemplo: ABC1234"); return; }
-    const ALFABETO = "ABCDEFGHJKLMNPQRSTUVWXYZ";
-    let v_x = 0;
-    for(let i=0;i<3;i++){ v_x = v_x*24+ALFABETO.indexOf(s7[i]); }
-    const lon = ((v_x + 0.5)/13824)*(-77.15 - (-83.05)) + (-83.05);
-    const lat = ((parseInt(s7.substring(3)) + 0.5)/10000)*(10-7)+7;
-    mymap.setView([lat, lon], 18);
-    L.marker([lat, lon]).addTo(mymap).bindPopup(`<b>${s7}</b>`).openPopup();
-};
+    let contenido = "";
+    const zoomActual = mymap.getZoom();
+
+    // 2. Decidir qué mostrar según el Zoom
+    if (zoomActual < 17) {
+        // Zoom alejado: Solo información de la zona
+        contenido = `<div style="text-align:center; padding:5px;">
+                        <b style="color:#2c3e50; font-size:14px;">ZONA POSTAL</b><br>
+                        <span style="font-size:16px;">${vm}</span>
+                     </div>`;
+    } else {
+        // Zoom cerca (Grid visible): Código Postal Completo
+        const cod7 = generarCOD7(e.latlng.lat, e.latlng.lng);
+        contenido = `<div style="text-align:center; padding:5px;">
+                        <b style="color:#2c3e50;">${vm}</b><br>
+                        <div style="margin-top:5px; font-weight:bold; color:#7f8c8d; font-size:10px;">CÓDIGO DE PRECISIÓN</div>
+                        <span style="font-size:22px; font-weight:bold; color:#e67e22;">${cod7}</span>
+                     </div>`;
+    }
+    
+    L.popup().setLatLng(e.latlng).setContent(contenido).openOn(mymap);
+});
 
 // 7. Rejilla
 function updateGrid() {
@@ -180,3 +189,4 @@ mymap.on('moveend zoomend', updateGrid);
 </script>
 </body>
 </html>
+
