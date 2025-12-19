@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>PanGrid 7C - Solución Clic</title>
+    <title>PanGrid 7C - Solución Clic Mejorada</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
@@ -16,12 +16,13 @@
         button#search-btn { background: #2c3e50; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; }
         .grid-label { font-size: 10px; font-weight: bold; color: #2980b9; pointer-events: none; text-shadow: 0 0 2px white; }
         .leaflet-popup-content { text-align: center; font-family: sans-serif; }
+        .leaflet-control-layers { max-height: 200px; overflow-y: auto; }
     </style>
 </head>
 <body>
 
 <div class="search-container">
-    <input type="text" id="search-input" placeholder="Ej: EAP3582">
+    <input type="text" id="search-input" placeholder="Ej: FRE8745">
     <button id="search-btn">IR</button>
 </div>
 
@@ -32,183 +33,168 @@
 <script src="https://unpkg.com/@mapbox/leaflet-pip@latest/leaflet-pip.js"></script>
 
 <script>
-    const mymap = L.map('mapid', { zoomControl: false }).setView([8.98, -79.52], 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mymap);
+const mymap = L.map('mapid', { zoomControl: true }).setView([8.98, -79.52], 13);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mymap);
 
-    const gridLayer = L.layerGroup().addTo(mymap);
-    let estafetasLayer;
-    let rawGeoData = null;
+const gridLayer = L.layerGroup().addTo(mymap);
 
-    // 1. CARGA SEGURA DEL GEOJSON
-    $.getJSON("estafetas.geojson", function(data) {
-        rawGeoData = data;
-        estafetasLayer = L.geoJSON(data, {
-            style: { color: "#2c3e50", weight: 2, fillOpacity: 0.1 }
-        }).addTo(mymap);
-        console.log("GeoJSON cargado correctamente");
-    }).fail(function() {
-        console.error("Error cargando estafetas.geojson. Verifica el nombre del archivo.");
-    });
+let estafetasLayer, estafetaslLayer, estafetaspLayer;
+let rawGeoData = null, rawLineData = null, rawPointData = null;
 
-    // 2. ALGORITMO POSTAL
-    function getPostalCode(lat, lon) {
-        const ALFABETO = "ABCDEFGHJKLMNPQRSTUVWXYZ"; 
-        let x_norm = (lon - (-83.05)) / (-77.15 - (-83.05));
-        let v_x = Math.floor(x_norm * 999999);
-        let lll = "";
-        for (let i = 0; i < 3; i++) {
-            lll = ALFABETO[Math.max(0, Math.min(v_x % 24, 23))] + lll;
-            v_x = Math.floor(v_x / 24);
-        }
-        let y_norm = (lat - 7.0) / (10.0 - 7.0);
-        let y_val = Math.floor(y_norm * 9999999);
-        return lll + String(y_val % 10000).padStart(4, '0');
-    }
-	function generarCOD7(lat, lon) {
+// -------- FUNCIONES CÓDIGO POSTAL --------
+function generarCOD7(lat, lon) {
     const ALFABETO = "ABCDEFGHJKLMNPQRSTUVWXYZ";
 
     const xNorm = (lon - (-83.05)) / (-77.15 - (-83.05));
     if (xNorm < 0 || xNorm >= 1) return null;
-
     let v = Math.floor(xNorm * Math.pow(24, 3));
     let lll = "";
     for (let i = 0; i < 3; i++) {
         lll = ALFABETO[v % 24] + lll;
         v = Math.floor(v / 24);
     }
-
     const yNorm = (lat - 7.0) / (10.0 - 7.0);
     if (yNorm < 0 || yNorm >= 1) return null;
-
-    const nnnn = Math.floor(yNorm * 10000)
-        .toString()
-        .padStart(4, "0");
-
+    const nnnn = Math.floor(yNorm * 10000).toString().padStart(4, "0");
     return lll + nnnn;
 }
 
-    // 3. EVENTO CLIC CORREGIDO
-    mymap.on("click", function (e) {
+// -------- CARGA GEOJSON --------
+$.getJSON("estafetas.geojson", function(data) {
+    rawGeoData = data;
+    estafetasLayer = L.geoJSON(data, {
+        style: { color: "#2c3e50", weight: 2, fillOpacity: 0.1 }
+    }).addTo(mymap);
+});
 
-	    let vm = "ZONA NO DEFINIDA";
-	
-	    if (estafetasLayer && rawGeoData) {
-	        const hit = leafletPip.pointInLayer(
-	            [e.latlng.lng, e.latlng.lat],
-	            estafetasLayer
-	        );
-	        if (hit.length && hit[0].feature.properties.VM_LEVEL) {
-	            vm = hit[0].feature.properties.VM_LEVEL;
-	        }
-	    }
-	
-	    // 🔴 Si no hay estafeta → solo texto
-	    if (vm === "ZONA NO DEFINIDA") {
-	        L.popup()
-	            .setLatLng(e.latlng)
-	            .setContent("<b>ZONA NO DEFINIDA</b>")
-	            .openOn(mymap);
-	        return;
-	    }
-	
-	    // 🧠 Código 7C (MISMA lógica que QGIS)
-	    const cod7 = generarCOD7(e.latlng.lat, e.latlng.lng);
-	
-	    // 🔒 Validación estricta
-	    if (!cod7 || !/^[A-Z]{3}\d{4}$/.test(cod7)) {
-	        L.popup()
-	            .setLatLng(e.latlng)
-	            .setContent(`<b>${vm}</b>`)
-	            .openOn(mymap);
-	        return;
-	    }
-	
-	    // ✅ Código postal final
-	    const postal = `${vm}-${cod7}`;
-	
-	    L.popup()
-	        .setLatLng(e.latlng)
-	        .setContent(`
-	            <div style="text-align:center;">
-	                <div style="font-weight:bold; margin-bottom:6px;">
-	                    CÓDIGO POSTAL
-	                </div>
-	                <div style="font-size:22px; font-weight:bold; color:#e67e22;">
-	                    ${postal}
-	                </div>
-	            </div>
-	        `)
-	        .openOn(mymap);
-	});
+$.getJSON("estafetasl.geojson", function(data) {
+    rawLineData = data;
+    estafetaslLayer = L.geoJSON(data, {
+        style: { color: "#e74c3c", weight: 3 },
+        onEachFeature: function(feature, layer) {
+            layer.on('click', function(e){
+                const ruta = feature.properties.RUTA || "SIN RUTA";
+                L.popup()
+                 .setLatLng(e.latlng)
+                 .setContent(`<div style="text-align:center;"><div style="font-weight:bold;">RUTA</div><div>${ruta}</div></div>`)
+                 .openOn(mymap);
+            });
+        }
+    });
+});
 
+$.getJSON("estafetasp.geojson", function(data) {
+    rawPointData = data;
+    estafetaspLayer = L.geoJSON(data, {
+        pointToLayer: function(feature, latlng) {
+            return L.circleMarker(latlng, {radius:6, color:"#27ae60", fillOpacity:1});
+        },
+        onEachFeature: function(feature, layer) {
+            layer.on('click', function(e){
+                const estaf = feature.properties.ESTAF_NAME || "SIN NOMBRE";
+                L.popup()
+                 .setLatLng(e.latlng)
+                 .setContent(`<div style="text-align:center;"><div style="font-weight:bold;">NOMBRE DE ESTAFETA</div><div>${estaf}</div></div>`)
+                 .openOn(mymap);
+            });
+        }
+    });
+});
 
-    // 4. BUSCADOR (Tu lógica corregida)
-    document.getElementById('search-btn').onclick = function() {
-	    const s7 = document.getElementById('search-input').value.trim().toUpperCase();
-	    
-	    // Validación de formato: 3 letras y 4 números
-	    if (/^[A-Z]{3}\d{4}$/.test(s7)) {
-	        const ALFABETO = "ABCDEFGHJKLMNPQRSTUVWXYZ";
-	        const lll = s7.substring(0, 3);
-	        const nnnn = parseInt(s7.substring(3));
-	
-	        // 1. Convertir Base 24 (Letras) a valor numérico X
-	        let v_x = 0;
-	        for(let i = 0; i < 3; i++) {
-	            let index = ALFABETO.indexOf(lll[i]);
-	            if (index === -1) return; // Letra no válida
-	            v_x = v_x * 24 + index;
-	        }
-	
-	        // 2. Cálculo de Coordenadas (Ajuste de precisión)
-	        // Usamos la constante del alfabeto al cubo (24^3 = 13824) para la escala de longitud
-	        let lon = (v_x / 13824) * (-77.15 - (-83.05)) + (-83.05);
-	        let lat = (nnnn / 10000) * (10.0 - 7.0) + 7.0;
-	
-	        // 3. Centrar en el mapa
-	        mymap.setView([lat, lon], 19);
-	        
-	        // Limpiar marcadores previos
-	        mymap.eachLayer(l => { 
-	            if(l instanceof L.Marker) mymap.removeLayer(l); 
-	        });
-	
-	        // Crear marcador y disparar el evento click automáticamente para que aparezca el popup naranja
-	        const marker = L.marker([lat, lon]).addTo(mymap);
-	        
-	        // Simulamos un click en el mapa en esa posición para que tu lógica de VM_LEVEL funcione
-	        mymap.fireEvent('click', {
-	            latlng: L.latLng(lat, lon),
-	            layerPoint: mymap.latLngToLayerPoint([lat, lon]),
-	            containerPoint: mymap.latLngToContainerPoint([lat, lon])
-	        });
-	    } else {
-	        alert("Formato de código inválido (Ejemplo: ADE4321)");
-	    }
-	};
+// -------- CONTROL DE CAPAS --------
+const overlayMaps = {
+    "Polígonos Estafetas": estafetasLayer,
+    "Líneas Rutas": estafetaslLayer,
+    "Puntos Estafetas": estafetaspLayer
+};
+L.control.layers(null, overlayMaps, {collapsed:false}).addTo(mymap);
 
-    // 5. REJILLA
-    function updateGrid() {
-        gridLayer.clearLayers();
-        if (mymap.getZoom() < 17) return;
-        const b = mymap.getBounds();
-        const sX = 0.00045, sY = 0.00035;
-        for (let x = Math.floor(b.getWest()/sX)*sX; x <= b.getEast(); x += sX) {
-            for (let y = Math.floor(b.getSouth()/sY)*sY; y <= b.getNorth(); y += sY) {
-                const lat = y + sY/2, lon = x + sX/2;
-                const code = generarCOD7(lat, lon);
-				if (!code) continue;
-                L.rectangle([[y, x], [y + sY, x + sX]], { color: "#3498db", weight: 0.5, fillOpacity: 0.03, interactive: false }).addTo(gridLayer);
-                if (mymap.getZoom() >= 18) {
-                    L.marker([lat, lon], { icon: L.divIcon({ className: 'grid-label', html: code, iconSize: [60, 20] }), interactive: false }).addTo(gridLayer);
-                }
+// -------- EVENTO CLIC GRILLA --------
+mymap.on("click", function (e) {
+    if (mymap.getZoom() < 17) return; // solo mostrar grid en zoom alto
+
+    let vm = "ZONA NO DEFINIDA";
+    if (estafetasLayer && rawGeoData) {
+        const hit = leafletPip.pointInLayer([e.latlng.lng, e.latlng.lat], estafetasLayer);
+        if (hit.length && hit[0].feature.properties.VM_LEVEL) vm = hit[0].feature.properties.VM_LEVEL;
+    }
+
+    if (vm === "ZONA NO DEFINIDA") {
+        L.popup().setLatLng(e.latlng).setContent("<b>ZONA NO DEFINIDA</b>").openOn(mymap);
+        return;
+    }
+
+    const cod7 = generarCOD7(e.latlng.lat, e.latlng.lng);
+    if (!cod7 || !/^[A-Z]{3}\d{4}$/.test(cod7)) {
+        L.popup().setLatLng(e.latlng).setContent(`<b>${vm}</b>`).openOn(mymap);
+        return;
+    }
+
+    const postal = `${vm}-${cod7}`;
+    L.popup()
+        .setLatLng(e.latlng)
+        .setContent(`<div style="text-align:center;"><div style="font-weight:bold;">CÓDIGO POSTAL</div><div style="font-size:22px; font-weight:bold; color:#e67e22;">${postal}</div></div>`)
+        .openOn(mymap);
+});
+
+// -------- BUSCADOR --------
+document.getElementById('search-btn').onclick = function() {
+    const s7 = document.getElementById('search-input').value.trim().toUpperCase();
+    if (!/^[A-Z]{3}\d{4}$/.test(s7)) { alert("Formato inválido (Ej: ADE4321)"); return; }
+
+    const ALFABETO = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+    const lll = s7.substring(0,3);
+    const nnnn = parseInt(s7.substring(3));
+    let v_x = 0;
+    for(let i=0;i<3;i++){ v_x = v_x*24+ALFABETO.indexOf(lll[i]); }
+    const lon = (v_x/13824)*(-77.15 - (-83.05)) + (-83.05);
+    const lat = (nnnn/10000)*(10-7)+7;
+
+    mymap.setView([lat, lon], 19);
+    const marker = L.marker([lat, lon]).addTo(mymap);
+    mymap.fireEvent('click',{latlng:L.latLng(lat,lon)});
+};
+
+// -------- REJILLA --------
+function updateGrid() {
+    gridLayer.clearLayers();
+    if (mymap.getZoom() < 17) return;
+
+    const b = mymap.getBounds();
+    const sX = 0.00045, sY = 0.00035;
+    for (let x = Math.floor(b.getWest()/sX)*sX; x <= b.getEast(); x += sX) {
+        for (let y = Math.floor(b.getSouth()/sY)*sY; y <= b.getNorth(); y += sY) {
+            const lat = y+sY/2, lon = x+sX/2;
+            const code = generarCOD7(lat, lon);
+            if (!code) continue;
+            L.rectangle([[y,x],[y+sY,x+sX]], {color:"#3498db", weight:0.5, fillOpacity:0.03, interactive:false}).addTo(gridLayer);
+            if (mymap.getZoom()>=18) {
+                L.marker([lat, lon], {icon:L.divIcon({className:'grid-label', html:code, iconSize:[60,20]}), interactive:false}).addTo(gridLayer);
             }
         }
     }
-    mymap.on('moveend zoomend', updateGrid);
+}
+mymap.on('moveend zoomend', updateGrid);
+
+// -------- BOTÓN DÓNDE ESTOY --------
+L.control.locate = function(opts) {
+    const control = L.control({position: 'topleft'});
+    control.onAdd = function() {
+        const btn = L.DomUtil.create('button', '');
+        btn.innerHTML = '📍';
+        btn.title = 'Dónde estoy';
+        btn.style.background = 'white';
+        btn.style.border = '1px solid #ccc';
+        btn.style.padding = '5px';
+        btn.style.cursor = 'pointer';
+        btn.onclick = function() {
+            mymap.locate({setView:true, maxZoom:19});
+        };
+        return btn;
+    };
+    return control;
+};
+L.control.locate().addTo(mymap);
 </script>
 </body>
 </html>
-
-
-
