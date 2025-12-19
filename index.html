@@ -10,40 +10,15 @@
         
         /* Título Adaptable */
         .map-title {
-            position: absolute; 
-            top: 10px; 
-            left: 50%; 
-            transform: translateX(-50%);
-            z-index: 4000; 
-            text-align: center; 
-            pointer-events: none;
-            width: 90%; /* Evita que se salga de la pantalla en móviles */
+            position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+            z-index: 4000; text-align: center; pointer-events: none; width: 90%;
         }
-        
         .map-title h1 { 
-            margin: 0; 
-            font-size: 22px; /* Tamaño para PC */
-            color: #2c3e50; 
-            font-weight: bold; 
-            letter-spacing: 2px;
+            margin: 0; font-size: 22px; color: #2c3e50; font-weight: bold; letter-spacing: 2px;
             text-shadow: 0 0 5px white, 0 0 10px white;
         }
-    
-        /* AJUSTES PARA CELULARES */
-        @media only screen and (max-width: 600px) {
-            .map-title h1 {
-                font-size: 14px; /* Más pequeño en móvil */
-                letter-spacing: 1px;
-            }
-            .search-container {
-                width: 180px; /* Buscador más estrecho en móvil */
-            }
-            .map-title {
-                top: 5px;
-            }
-        }
 
-        /* Buscador en posición original superior */
+        /* Buscador */
         .search-container {
             position: absolute; top: 10px; right: 10px; z-index: 3000;
             display: flex; background: white; padding: 5px; border-radius: 8px;
@@ -51,7 +26,13 @@
         }
         input#search-input { flex: 1; border: none; padding: 8px; font-size: 16px; outline: none; width: 100%; }
         button#search-btn { background: #2c3e50; color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; font-weight: bold; }
-    
+
+        /* Ajustes Móvil */
+        @media only screen and (max-width: 600px) {
+            .map-title h1 { font-size: 14px; letter-spacing: 1px; }
+            .search-container { width: 180px; }
+        }
+
         .leaflet-top.leaflet-right { top: 60px !important; }
         .grid-label { font-size: 10px; font-weight: bold; color: #2980b9; pointer-events: none; text-shadow: 0 0 2px white; }
         .locate-button { background: white; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; cursor: pointer; border-radius: 5px; font-size: 18px; border: 2px solid rgba(0,0,0,0.2); }
@@ -75,6 +56,7 @@
 <script src="https://unpkg.com/@mapbox/leaflet-pip@latest/leaflet-pip.js"></script>
 
 <script>
+// --- INICIALIZACIÓN ---
 const mymap = L.map('mapid', { zoomControl: true }).setView([8.98, -79.52], 13);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mymap);
 
@@ -84,33 +66,21 @@ let estafetaslLayer = L.layerGroup().addTo(mymap);
 let estafetaspLayer = L.layerGroup().addTo(mymap);
 let rawGeoData = null;
 
-// Carga de GeoJSONs
+// --- CARGA DE DATOS ---
 $.getJSON("estafetas.geojson", function(data) {
     rawGeoData = data;
     L.geoJSON(data, { style: { color: "#2c3e50", weight: 2, fillOpacity: 0.1 } }).addTo(estafetasLayer);
 });
-$.getJSON("estafetasl.geojson", data => L.geoJSON(data, { style: { color: "#e74c3c", weight: 3 } }).addTo(estafetaslLayer));
-$.getJSON("estafetasp.geojson", data => L.geoJSON(data, { pointToLayer: (f, latlng) => L.circleMarker(latlng, {radius:6, color:"#27ae60", fillOpacity:1}) }).addTo(estafetaspLayer));
+$.getJSON("estafetasl.geojson", d => L.geoJSON(d, { style: { color: "#e74c3c", weight: 3 } }).addTo(estafetaslLayer));
+$.getJSON("estafetasp.geojson", d => L.geoJSON(d, { pointToLayer: (f, ll) => L.circleMarker(ll, {radius:6, color:"#27ae60", fillOpacity:1}) }).addTo(estafetaspLayer));
 
 L.control.layers(null, { "Polígonos": estafetasLayer, "Rutas": estafetaslLayer, "Estafetas": estafetaspLayer }, {collapsed:false, position: 'topright'}).addTo(mymap);
 
-// Botón de Ubicación
-const LocateControl = L.Control.extend({
-    options: { position: 'topleft' },
-    onAdd: function() {
-        const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
-        const button = L.DomUtil.create('a', 'locate-button', container);
-        button.innerHTML = '🎯';
-        L.DomEvent.on(button, 'click', e => { L.DomEvent.stopPropagation(e); mymap.locate({setView: true, maxZoom: 18}); });
-        return container;
-    }
-});
-mymap.addControl(new LocateControl());
-
+// --- LÓGICA POSTAL ---
 function generarCOD7(lat, lon) {
     const ALFABETO = "ABCDEFGHJKLMNPQRSTUVWXYZ";
     const xNorm = (lon - (-83.05)) / (-77.15 - (-83.05));
-    if (xNorm < 0 || xNorm >= 1) return "000";
+    if (xNorm < 0 || xNorm >= 1) return "0000000";
     let v = Math.floor(xNorm * 13824);
     let lll = "";
     for (let i = 0; i < 3; i++) { lll = ALFABETO[v % 24] + lll; v = Math.floor(v / 24); }
@@ -119,11 +89,12 @@ function generarCOD7(lat, lon) {
     return lll + nnnn;
 }
 
+// --- CLIC EN EL MAPA ---
 mymap.on("click", function (e) {
-    let vm = "S/Z";
+    let vm = "ZONA NO DEFINIDA";
     if (rawGeoData) {
         const hit = leafletPip.pointInLayer([e.latlng.lng, e.latlng.lat], L.geoJSON(rawGeoData));
-        if (hit.length > 0) vm = hit[0].feature.properties.VM_LEVEL || "S/Z";
+        if (hit.length > 0) vm = hit[0].feature.properties.VM_LEVEL || "ZONA NO DEFINIDA";
     }
 
     let contenido = "";
@@ -136,18 +107,52 @@ mymap.on("click", function (e) {
     L.popup().setLatLng(e.latlng).setContent(contenido).openOn(mymap);
 });
 
+// --- BUSCADOR ---
 document.getElementById('search-btn').onclick = function() {
     const s7 = document.getElementById('search-input').value.trim().toUpperCase();
-    if (!/^[A-Z]{3}\d{4}$/.test(s7)) { alert("Use formato ABC1234"); return; }
+    if (!/^[A-Z]{3}\d{4}$/.test(s7)) { alert("Formato: ABC1234"); return; }
     const ALFABETO = "ABCDEFGHJKLMNPQRSTUVWXYZ";
     let v_x = 0;
     for(let i=0;i<3;i++){ v_x = v_x*24+ALFABETO.indexOf(s7[i]); }
     const lon = ((v_x + 0.5)/13824)*(-77.15 - (-83.05)) + (-83.05);
     const lat = ((parseInt(s7.substring(3)) + 0.5)/10000)*(10-7)+7;
     mymap.setView([lat, lon], 19);
-    L.marker([lat, lon]).addTo(mymap).bindPopup(`<b>Búsqueda: ${s7}</b>`).openPopup();
+    L.marker([lat, lon]).addTo(mymap).bindPopup(`<b>Código: ${s7}</b>`).openPopup();
 };
 
+// --- UBICACIÓN (GPS) ---
+mymap.on('locationfound', function(e) {
+    if (window.locMarker) mymap.removeLayer(window.locMarker);
+    
+    let vm = "ZONA NO DEFINIDA";
+    if (rawGeoData) {
+        const hit = leafletPip.pointInLayer([e.latlng.lng, e.latlng.lat], L.geoJSON(rawGeoData));
+        if (hit.length > 0) vm = hit[0].feature.properties.VM_LEVEL || "ZONA NO DEFINIDA";
+    }
+    const gridCode = generarCOD7(e.latlng.lat, e.latlng.lng);
+    
+    window.locMarker = L.marker(e.latlng).addTo(mymap)
+        .bindPopup(`<b>TU CÓDIGO POSTAL</b><br><span style="font-size:18px; color:#e67e22; font-weight:bold;">${vm}-${gridCode}</span>`)
+        .openPopup();
+    mymap.setView(e.latlng, 18);
+});
+
+const LocateControl = L.Control.extend({
+    options: { position: 'topleft' },
+    onAdd: function() {
+        const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+        const button = L.DomUtil.create('a', 'locate-button', container);
+        button.innerHTML = '🎯';
+        L.DomEvent.on(button, 'click', e => { 
+            L.DomEvent.stopPropagation(e); 
+            mymap.locate({setView: false, enableHighAccuracy: true}); 
+        });
+        return container;
+    }
+});
+mymap.addControl(new LocateControl());
+
+// --- REJILLA ---
 function updateGrid() {
     gridLayer.clearLayers();
     if (mymap.getZoom() < 17) return;
@@ -163,7 +168,7 @@ function updateGrid() {
     }
 }
 mymap.on('moveend zoomend', updateGrid);
+
 </script>
 </body>
 </html>
-
