@@ -135,36 +135,41 @@ function generarCOD7(lat, lon) {
 
 // 6. Clic y Buscador
 mymap.on("click", function (e) {
-    let vm = "ZONA NO DEFINIDA";
+    let vm = "S/Z"; // Valor por defecto si no hay zona
     
-    // 1. Buscar siempre el polígono (VM_LEVEL)
+    // 1. Identificar la zona (VM_LEVEL) a través del GeoJSON
     if (rawGeoData) {
-        // Usamos una capa temporal para el PIP para asegurar precisión
         const hit = leafletPip.pointInLayer([e.latlng.lng, e.latlng.lat], L.geoJSON(rawGeoData));
-        if (hit.length > 0) vm = hit[0].feature.properties.VM_LEVEL || "ZONA REGISTRADA";
+        if (hit.length > 0) {
+            vm = hit[0].feature.properties.VM_LEVEL || "S/Z";
+        }
     }
 
     let contenido = "";
     const zoomActual = mymap.getZoom();
 
-    // 2. Decidir qué mostrar según el Zoom
     if (zoomActual < 17) {
-        // Zoom alejado: Solo información de la zona
-        contenido = `<div style="text-align:center; padding:5px;">
-                        <b style="color:#2c3e50; font-size:14px;">ZONA POSTAL</b><br>
-                        <span style="font-size:16px;">${vm}</span>
+        // NIVEL 1: Zoom alejado - Solo muestra la zona del polígono
+        contenido = `<div style="text-align:center;">
+                        <b style="color:#2c3e50;">CÓDIGO POSTAL</b><br>
+                        <span style="font-size:18px; font-weight:bold;">${vm}</span>
                      </div>`;
     } else {
-        // Zoom cerca (Grid visible): Código Postal Completo
-        const cod7 = generarCOD7(e.latlng.lat, e.latlng.lng);
-        contenido = `<div style="text-align:center; padding:5px;">
-                        <b style="color:#2c3e50;">${vm}</b><br>
-                        <div style="margin-top:5px; font-weight:bold; color:#7f8c8d; font-size:10px;">CÓDIGO DE PRECISIÓN</div>
-                        <span style="font-size:22px; font-weight:bold; color:#e67e22;">${cod7}</span>
+        // NIVEL 2: Zoom de precisión (Grid visible)
+        // Genera el código de 7 caracteres y lo concatena con el VM_LEVEL
+        const gridCode = generarCOD7(e.latlng.lat, e.latlng.lng);
+        const fullPostalCode = `${vm}-${gridCode}`;
+        
+        contenido = `<div style="text-align:center;">
+                        <b style="color:#2c3e50;">CÓDIGO POSTAL</b><br>
+                        <span style="font-size:20px; font-weight:bold; color:#e67e22;">${fullPostalCode}</span>
                      </div>`;
     }
     
-    L.popup().setLatLng(e.latlng).setContent(contenido).openOn(mymap);
+    L.popup()
+        .setLatLng(e.latlng)
+        .setContent(contenido)
+        .openOn(mymap);
 });
 
 // 7. Rejilla
@@ -189,4 +194,5 @@ mymap.on('moveend zoomend', updateGrid);
 </script>
 </body>
 </html>
+
 
