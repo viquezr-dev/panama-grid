@@ -27,6 +27,14 @@
         input#search-input { flex: 1; border: none; padding: 8px; font-size: 16px; outline: none; width: 100%; }
         button#search-btn { background: #2c3e50; color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; font-weight: bold; }
 
+        /* Botón Navegar dentro del Popup */
+        .btn-nav {
+            display: inline-block; margin-top: 10px; padding: 8px 15px;
+            background-color: #3498db; color: white !important; text-decoration: none !important;
+            border-radius: 5px; font-weight: bold; font-size: 12px; transition: 0.3s;
+        }
+        .btn-nav:hover { background-color: #2980b9; }
+
         /* Ajustes Móvil */
         @media only screen and (max-width: 600px) {
             .map-title h1 { font-size: 14px; letter-spacing: 1px; }
@@ -76,6 +84,12 @@ $.getJSON("estafetasp.geojson", d => L.geoJSON(d, { pointToLayer: (f, ll) => L.c
 
 L.control.layers(null, { "Polígonos": estafetasLayer, "Rutas": estafetaslLayer, "Estafetas": estafetaspLayer }, {collapsed:false, position: 'topright'}).addTo(mymap);
 
+// --- LÓGICA DE NAVEGACIÓN ---
+function abrirNavegacion(lat, lon) {
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}&travelmode=driving`;
+    window.open(url, '_blank');
+}
+
 // --- LÓGICA POSTAL ---
 function generarCOD7(lat, lon) {
     const ALFABETO = "ABCDEFGHJKLMNPQRSTUVWXYZ";
@@ -102,7 +116,12 @@ mymap.on("click", function (e) {
         contenido = `<div style="text-align:center;"><b>CÓDIGO POSTAL</b><br><span style="font-size:18px; font-weight:bold;">${vm}</span></div>`;
     } else {
         const gridCode = generarCOD7(e.latlng.lat, e.latlng.lng);
-        contenido = `<div style="text-align:center;"><b>CÓDIGO POSTAL</b><br><span style="font-size:20px; font-weight:bold; color:#e67e22;">${vm}-${gridCode}</span></div>`;
+        contenido = `
+            <div style="text-align:center;">
+                <b>CÓDIGO POSTAL</b><br>
+                <span style="font-size:20px; font-weight:bold; color:#e67e22;">${vm}-${gridCode}</span><br>
+                <a href="#" class="btn-nav" onclick="abrirNavegacion(${e.latlng.lat}, ${e.latlng.lng})">📍 NAVEGAR AQUÍ</a>
+            </div>`;
     }
     L.popup().setLatLng(e.latlng).setContent(contenido).openOn(mymap);
 });
@@ -116,8 +135,15 @@ document.getElementById('search-btn').onclick = function() {
     for(let i=0;i<3;i++){ v_x = v_x*24+ALFABETO.indexOf(s7[i]); }
     const lon = ((v_x + 0.5)/13824)*(-77.15 - (-83.05)) + (-83.05);
     const lat = ((parseInt(s7.substring(3)) + 0.5)/10000)*(10-7)+7;
+    
     mymap.setView([lat, lon], 19);
-    L.marker([lat, lon]).addTo(mymap).bindPopup(`<b>Código: ${s7}</b>`).openPopup();
+    L.marker([lat, lon]).addTo(mymap)
+        .bindPopup(`
+            <div style="text-align:center;">
+                <b>Código: ${s7}</b><br>
+                <a href="#" class="btn-nav" onclick="abrirNavegacion(${lat}, ${lon})">📍 NAVEGAR AQUÍ</a>
+            </div>`)
+        .openPopup();
 };
 
 // --- UBICACIÓN (GPS) ---
@@ -132,7 +158,7 @@ mymap.on('locationfound', function(e) {
     const gridCode = generarCOD7(e.latlng.lat, e.latlng.lng);
     
     window.locMarker = L.marker(e.latlng).addTo(mymap)
-        .bindPopup(`<b>TU CÓDIGO POSTAL</b><br><span style="font-size:18px; color:#e67e22; font-weight:bold;">${vm}-${gridCode}</span>`)
+        .bindPopup(`<b>TU POSICIÓN</b><br><span style="font-size:16px; font-weight:bold;">${vm}-${gridCode}</span>`)
         .openPopup();
     mymap.setView(e.latlng, 18);
 });
