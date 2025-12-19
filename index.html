@@ -1,19 +1,49 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>PanGrid 7C - Sistema Multi-Capa</title>
+    <title>PanGrid 7C - Interfaz Corregida</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
     <style>
         body, html, #mapid { width: 100%; height: 100%; margin: 0; padding: 0; }
+        
+        /* Contenedor del Buscador */
         .search-container {
-            position: absolute; top: 10px; right: 10px; z-index: 2000;
+            position: absolute; top: 10px; right: 10px; z-index: 3000;
             display: flex; background: white; padding: 5px; border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.3); width: 280px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3); width: 260px;
         }
-        input#search-input { flex: 1; border: none; padding: 10px; font-size: 16px; outline: none; }
-        button#search-btn { background: #2c3e50; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; }
+        input#search-input { flex: 1; border: none; padding: 8px; font-size: 16px; outline: none; width: 100px; }
+        button#search-btn { background: #2c3e50; color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; font-weight: bold; }
+
+        /* Ajuste del Selector de Capas (Casillas) */
+        .leaflet-top.leaflet-right {
+            top: 70px !important; /* Lo bajamos para que no choque con el buscador */
+        }
+        .leaflet-control-layers {
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2) !important;
+            border: none !important;
+            border-radius: 8px !important;
+        }
+
+        /* Estilo del Botón "Dónde estoy" */
+        .locate-button {
+            background: white;
+            width: 34px;
+            height: 34px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 1px 5px rgba(0,0,0,0.4);
+            border-radius: 5px;
+            font-size: 18px;
+            border: 2px solid rgba(0,0,0,0.2);
+            background-clip: padding-box;
+        }
+        .locate-button:hover { background-color: #f4f4f4; }
+
         .grid-label { font-size: 10px; font-weight: bold; color: #2980b9; pointer-events: none; text-shadow: 0 0 2px white; }
     </style>
 </head>
@@ -31,104 +61,104 @@
 <script src="https://unpkg.com/@mapbox/leaflet-pip@latest/leaflet-pip.js"></script>
 
 <script>
+// 1. Inicialización
 const mymap = L.map('mapid', { zoomControl: true }).setView([8.98, -79.52], 13);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mymap);
 
 const gridLayer = L.layerGroup().addTo(mymap);
-
-// Inicializar capas vacías para el Control
 let estafetasLayer = L.layerGroup().addTo(mymap);
 let estafetaslLayer = L.layerGroup().addTo(mymap);
 let estafetaspLayer = L.layerGroup().addTo(mymap);
-
 let rawGeoData = null;
 
-// -------- CARGA GEOJSON (CORREGIDA) --------
+// 2. Carga de Datos
 $.getJSON("estafetas.geojson", function(data) {
     rawGeoData = data;
-    L.geoJSON(data, {
-        style: { color: "#2c3e50", weight: 2, fillOpacity: 0.1 }
-    }).addTo(estafetasLayer);
+    L.geoJSON(data, { style: { color: "#2c3e50", weight: 2, fillOpacity: 0.1 } }).addTo(estafetasLayer);
 });
 
 $.getJSON("estafetasl.geojson", function(data) {
-    L.geoJSON(data, {
-        style: { color: "#e74c3c", weight: 3 },
-        onEachFeature: function(feature, layer) {
-            layer.bindPopup(`<b>RUTA:</b> ${feature.properties.RUTA || "SIN RUTA"}`);
-        }
+    L.geoJSON(data, { style: { color: "#e74c3c", weight: 3 }, 
+        onEachFeature: (f, l) => l.bindPopup(`<b>RUTA:</b> ${f.properties.RUTA || "S/R"}`) 
     }).addTo(estafetaslLayer);
 });
 
 $.getJSON("estafetasp.geojson", function(data) {
     L.geoJSON(data, {
         pointToLayer: (f, latlng) => L.circleMarker(latlng, {radius:6, color:"#27ae60", fillOpacity:1}),
-        onEachFeature: function(feature, layer) {
-            layer.bindPopup(`<b>ESTAFETA:</b> ${feature.properties.ESTAF_NAME || "SIN NOMBRE"}`);
-        }
+        onEachFeature: (f, l) => l.bindPopup(`<b>ESTAFETA:</b> ${f.properties.ESTAF_NAME || "S/N"}`)
     }).addTo(estafetaspLayer);
 });
 
-// CONTROL DE CAPAS (Apunta a los grupos, no a las variables de carga)
+// 3. Control de Capas (Posicionado a la derecha, aparecerá debajo del buscador)
 const overlayMaps = {
     "Polígonos": estafetasLayer,
-    "Líneas": estafetaslLayer,
-    "Puntos": estafetaspLayer
+    "Rutas (Líneas)": estafetaslLayer,
+    "Estafetas (Puntos)": estafetaspLayer
 };
-L.control.layers(null, overlayMaps, {collapsed:false}).addTo(mymap);
+L.control.layers(null, overlayMaps, {collapsed:false, position: 'topright'}).addTo(mymap);
 
-// -------- LÓGICA POSTAL --------
+// 4. Botón Personalizado "Dónde estoy" (Ubicado arriba a la izquierda)
+const LocateControl = L.Control.extend({
+    options: { position: 'topleft' },
+    onAdd: function() {
+        const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+        const button = L.DomUtil.create('a', 'locate-button', container);
+        button.innerHTML = '🎯';
+        button.title = "Mi ubicación";
+        
+        L.DomEvent.on(button, 'click', function(e) {
+            L.DomEvent.stopPropagation(e);
+            mymap.locate({setView: true, maxZoom: 18});
+        });
+        return container;
+    }
+});
+mymap.addControl(new LocateControl());
+
+mymap.on('locationfound', (e) => {
+    L.circle(e.latlng, {radius: 10, color: '#3498db'}).addTo(mymap);
+});
+
+// 5. Lógica Postal
 function generarCOD7(lat, lon) {
     const ALFABETO = "ABCDEFGHJKLMNPQRSTUVWXYZ";
     const xNorm = (lon - (-83.05)) / (-77.15 - (-83.05));
     if (xNorm < 0 || xNorm >= 1) return null;
-    let v = Math.floor(xNorm * 13824); // 24^3
+    let v = Math.floor(xNorm * 13824);
     let lll = "";
-    for (let i = 0; i < 3; i++) {
-        lll = ALFABETO[v % 24] + lll;
-        v = Math.floor(v / 24);
-    }
+    for (let i = 0; i < 3; i++) { lll = ALFABETO[v % 24] + lll; v = Math.floor(v / 24); }
     const yNorm = (lat - 7.0) / (10.0 - 7.0);
-    if (yNorm < 0 || yNorm >= 1) return null;
     const nnnn = Math.floor(yNorm * 10000).toString().padStart(4, "0");
     return lll + nnnn;
 }
 
-// -------- EVENTO CLIC (SIN RESTRICCIÓN DE ZOOM PARA TEST) --------
+// 6. Clic y Buscador
 mymap.on("click", function (e) {
     let vm = "ZONA NO DEFINIDA";
-    
-    // Solo busca si hay datos cargados
     if (rawGeoData) {
         const hit = leafletPip.pointInLayer([e.latlng.lng, e.latlng.lat], L.geoJSON(rawGeoData));
         if (hit.length > 0) vm = hit[0].feature.properties.VM_LEVEL || "ZONA REGISTRADA";
     }
-
     const cod7 = generarCOD7(e.latlng.lat, e.latlng.lng);
-    const contenido = `<b>${vm}</b><br><span style="font-size:20px; color:#e67e22; font-weight:bold;">${cod7}</span>`;
-    
-    L.popup().setLatLng(e.latlng).setContent(contenido).openOn(mymap);
+    L.popup().setLatLng(e.latlng)
+        .setContent(`<b>${vm}</b><br><span style="font-size:20px; color:#e67e22; font-weight:bold;">${cod7}</span>`)
+        .openOn(mymap);
 });
 
-// -------- BUSCADOR --------
 document.getElementById('search-btn').onclick = function() {
     const s7 = document.getElementById('search-input').value.trim().toUpperCase();
-    if (!/^[A-Z]{3}\d{4}$/.test(s7)) { alert("Formato inválido"); return; }
-
+    if (!/^[A-Z]{3}\d{4}$/.test(s7)) { alert("Ejemplo: ABC1234"); return; }
     const ALFABETO = "ABCDEFGHJKLMNPQRSTUVWXYZ";
-    const lll = s7.substring(0,3);
-    const nnnn = parseInt(s7.substring(3));
     let v_x = 0;
-    for(let i=0;i<3;i++){ v_x = v_x*24+ALFABETO.indexOf(lll[i]); }
-    
-    const lon = (v_x/13824)*(-77.15 - (-83.05)) + (-83.05);
-    const lat = (nnnn/10000)*(10-7)+7;
-
+    for(let i=0;i<3;i++){ v_x = v_x*24+ALFABETO.indexOf(s7[i]); }
+    const lon = ((v_x + 0.5)/13824)*(-77.15 - (-83.05)) + (-83.05);
+    const lat = ((parseInt(s7.substring(3)) + 0.5)/10000)*(10-7)+7;
     mymap.setView([lat, lon], 18);
-    L.marker([lat, lon]).addTo(mymap).bindPopup("<b>Búsqueda: " + s7 + "</b>").openPopup();
+    L.marker([lat, lon]).addTo(mymap).bindPopup(`<b>${s7}</b>`).openPopup();
 };
 
-// -------- REJILLA --------
+// 7. Rejilla
 function updateGrid() {
     gridLayer.clearLayers();
     if (mymap.getZoom() < 17) return;
@@ -146,6 +176,7 @@ function updateGrid() {
     }
 }
 mymap.on('moveend zoomend', updateGrid);
+
 </script>
 </body>
 </html>
