@@ -1,34 +1,33 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Sistema Postal de Panamá</title>
+    <title>SISTEMA POSTAL DE PANAMÁ</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
     <style>
-        body, html, #mapid { width: 100%; height: 100%; margin: 0; padding: 0; font-family: sans-serif; }
+        body, html, #mapid { width: 100%; height: 100%; margin: 0; padding: 0; font-family: 'Arial', sans-serif; }
         
-        /* Título Principal */
+        /* Título Limpio (Sin globo) */
         .map-title {
-            position: absolute; top: 15px; left: 50%; transform: translateX(-50%);
-            z-index: 4000; background: rgba(255, 255, 255, 0.9);
-            padding: 10px 25px; border-radius: 50px; border: 2px solid #2c3e50;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3); text-align: center;
-            pointer-events: none; width: auto; white-space: nowrap;
+            position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+            z-index: 4000; text-align: center; pointer-events: none;
+            text-shadow: 0 0 5px white, 0 0 10px white; /* Para legibilidad sobre el mapa */
         }
-        .map-title h1 { margin: 0; font-size: 18px; color: #2c3e50; letter-spacing: 1px; }
+        .map-title h1 { margin: 0; font-size: 22px; color: #2c3e50; font-weight: bold; letter-spacing: 2px; }
 
-        /* Contenedor del Buscador */
+        /* Buscador en posición original superior */
         .search-container {
-            position: absolute; top: 80px; right: 10px; z-index: 3000;
+            position: absolute; top: 10px; right: 10px; z-index: 3000;
             display: flex; background: white; padding: 5px; border-radius: 8px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3); width: 260px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2); width: 260px;
         }
         input#search-input { flex: 1; border: none; padding: 8px; font-size: 16px; outline: none; }
         button#search-btn { background: #2c3e50; color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; font-weight: bold; }
 
-        /* Posición de Controles */
-        .leaflet-top.leaflet-right { top: 135px !important; }
+        /* Panel de capas justo debajo del buscador */
+        .leaflet-top.leaflet-right { top: 60px !important; }
+        
         .grid-label { font-size: 10px; font-weight: bold; color: #2980b9; pointer-events: none; text-shadow: 0 0 2px white; }
         .locate-button { background: white; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; cursor: pointer; border-radius: 5px; font-size: 18px; border: 2px solid rgba(0,0,0,0.2); }
     </style>
@@ -40,7 +39,7 @@
 </div>
 
 <div class="search-container">
-    <input type="text" id="search-input" placeholder="Ej: ABC1234">
+    <input type="text" id="search-input" placeholder="Ej: ADE4321">
     <button id="search-btn">IR</button>
 </div>
 
@@ -60,7 +59,7 @@ let estafetaslLayer = L.layerGroup().addTo(mymap);
 let estafetaspLayer = L.layerGroup().addTo(mymap);
 let rawGeoData = null;
 
-// CARGA DE DATOS
+// Carga de GeoJSONs
 $.getJSON("estafetas.geojson", function(data) {
     rawGeoData = data;
     L.geoJSON(data, { style: { color: "#2c3e50", weight: 2, fillOpacity: 0.1 } }).addTo(estafetasLayer);
@@ -70,7 +69,7 @@ $.getJSON("estafetasp.geojson", data => L.geoJSON(data, { pointToLayer: (f, latl
 
 L.control.layers(null, { "Polígonos": estafetasLayer, "Rutas": estafetaslLayer, "Estafetas": estafetaspLayer }, {collapsed:false, position: 'topright'}).addTo(mymap);
 
-// BOTÓN GPS
+// Botón de Ubicación
 const LocateControl = L.Control.extend({
     options: { position: 'topleft' },
     onAdd: function() {
@@ -83,7 +82,6 @@ const LocateControl = L.Control.extend({
 });
 mymap.addControl(new LocateControl());
 
-// LÓGICA POSTAL
 function generarCOD7(lat, lon) {
     const ALFABETO = "ABCDEFGHJKLMNPQRSTUVWXYZ";
     const xNorm = (lon - (-83.05)) / (-77.15 - (-83.05));
@@ -96,7 +94,6 @@ function generarCOD7(lat, lon) {
     return lll + nnnn;
 }
 
-// EVENTO CLIC INTELIGENTE
 mymap.on("click", function (e) {
     let vm = "S/Z";
     if (rawGeoData) {
@@ -114,7 +111,6 @@ mymap.on("click", function (e) {
     L.popup().setLatLng(e.latlng).setContent(contenido).openOn(mymap);
 });
 
-// BUSCADOR
 document.getElementById('search-btn').onclick = function() {
     const s7 = document.getElementById('search-input').value.trim().toUpperCase();
     if (!/^[A-Z]{3}\d{4}$/.test(s7)) { alert("Use formato ABC1234"); return; }
@@ -127,7 +123,6 @@ document.getElementById('search-btn').onclick = function() {
     L.marker([lat, lon]).addTo(mymap).bindPopup(`<b>Búsqueda: ${s7}</b>`).openPopup();
 };
 
-// REJILLA
 function updateGrid() {
     gridLayer.clearLayers();
     if (mymap.getZoom() < 17) return;
