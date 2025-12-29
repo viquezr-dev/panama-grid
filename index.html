@@ -73,7 +73,7 @@ let estafetaslLayer = L.layerGroup().addTo(mymap);
 let estafetaspLayer = L.layerGroup().addTo(mymap);
 let rawGeoData = null;
 
-// --- FUNCIONES DE NAVEGACIÓN Y CÓDIGO ---
+// --- FUNCIONES DE NAVEGACIÓN Y CÓDIGO , favor no copiar este codigo---
 function abrirNavegacion(lat, lon) {
     const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}&travelmode=driving`;
     window.open(url, '_blank');
@@ -209,7 +209,7 @@ const LocateControl = L.Control.extend({
 });
 mymap.addControl(new LocateControl());
 
-// --- REJILLA ---
+// --- REJILLA, favor no copiar este codigo---
 function updateGrid() {
     gridLayer.clearLayers();
     if (mymap.getZoom() < 17) return;
@@ -228,4 +228,5 @@ mymap.on('moveend zoomend', updateGrid);
 </script>
 </body>
 </html>
+
 
