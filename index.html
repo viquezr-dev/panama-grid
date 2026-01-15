@@ -95,6 +95,15 @@
             text-align: center;
             border: 1px solid #dee2e6;
         }
+        .leaflet-tooltip {
+        background: rgba(255, 255, 255, 0.9);
+        border: 1px solid #1a73e8;
+        border-radius: 3px;
+        padding: 3px 6px;
+        font-size: 11px;
+        font-weight: bold;
+        color: #1a73e8;
+        }
     </style>
 </head>
 <body>
@@ -816,6 +825,7 @@ mymap.on("click", function (e) {
 
     // SIEMPRE usar el código de la cuadrícula, ignorar zonas
     const macroID = generarCodigoMacro(hC[0].feature);
+    console.log(`CLIC: Cuadro seleccionado - FID: ${hC[0].feature.properties.fid}, codigo_macro: "${macroID}"`);
     
     let titulo = "ZONAS POSTALES", finalCode = macroID;
     const z = mymap.getZoom();
@@ -1306,5 +1316,6 @@ updateGridAndLabels();
 </script>
 </body>
 </html>
+
 
 
