@@ -143,10 +143,13 @@ let hiddenLabels = [];
 function generarCodigoMacro(feature) {
     // Usar directamente el campo codigo_macro del archivo cuadricula.geojson
     if (feature.properties && feature.properties.codigo_macro) {
-        return feature.properties.codigo_macro;
+        const codigo = feature.properties.codigo_macro;
+        console.log(`DEBUG: Obteniendo codigo_macro para feature ${feature.properties.fid}: "${codigo}"`);
+        return codigo;
     }
     // Fallback por si algún cuadro no tiene el campo
-    return "SINCOD"; // Valor por defecto mejorado
+    console.warn(`DEBUG: Feature ${feature.properties.fid} no tiene codigo_macro, usando SINCOD`);
+    return "SINCOD";
 }
 
 // Función hash mejorada para generar códigos desordenados
@@ -273,7 +276,7 @@ function obtenerUltimos6Digitos(codigoCompleto) {
 }
 
 function updateGridAndLabels() {
-    gridLayer.clearLayers();
+     gridLayer.clearLayers();
     labelLayer.clearLayers();
     microWatermarkCache.clear();
     nanoWatermarkCache.clear();
@@ -291,14 +294,13 @@ function updateGridAndLabels() {
         
         // Obtener el código macro del campo codigo_macro
         const codigoMacro = generarCodigoMacro(f);
-        console.log(`Cuadro ${featureIndex}: codigo_macro = "${codigoMacro}"`);
         
         // Labels para macro (zoom 10-14) - USAR EL CÓDIGO MACRO DEL CAMPO
         if (z >= 10 && z < 14 && labelsEnabled) {
             L.marker(fBounds.getCenter(), {
                 icon: L.divIcon({ 
                     className: 'watermark-label-fixed', 
-                    html: codigoMacro, 
+                    html: `<div title="FID: ${f.properties.fid}">${codigoMacro}</div>`, 
                     iconSize: [60, 20] 
                 })
             }).addTo(labelLayer);
@@ -533,11 +535,24 @@ function updateGridAndLabels() {
 // Carga de Datos
 $.getJSON("cuadricula.geojson", d => { 
     rawCuadricula = d; 
-    console.log("Cuadrícula cargada. Primeros 3 cuadros:");
-    d.features.slice(0, 3).forEach((f, i) => {
-        console.log(`  Cuadro ${i}: codigo_macro = "${f.properties.codigo_macro}"`);
+    console.log("=== CUADRÍCULA CARGADA ===");
+    console.log("Total de cuadros:", d.features.length);
+    console.log("Primeros 5 cuadros:");
+    d.features.slice(0, 5).forEach((f, i) => {
+        console.log(`  ${i+1}. FID: ${f.properties.fid}, codigo_macro: "${f.properties.codigo_macro}"`);
     });
-    L.geoJSON(d, {style: {color: "#3498db", weight: 1, fillOpacity: 0.05}}).addTo(cuadriculaFisicaLayer);
+    
+    L.geoJSON(d, {
+        style: {color: "#3498db", weight: 1, fillOpacity: 0.05},
+        onEachFeature: function(feature, layer) {
+            // Agregar tooltip para verificar el código
+            layer.bindTooltip(`Macro: ${feature.properties.codigo_macro || "N/A"}`, {
+                permanent: false,
+                direction: 'center'
+            });
+        }
+    }).addTo(cuadriculaFisicaLayer);
+    
     updateGridAndLabels(); 
 });
 $.getJSON("estafetas.geojson", d => { 
@@ -1291,3 +1306,4 @@ updateGridAndLabels();
 </script>
 </body>
 </html>
+
