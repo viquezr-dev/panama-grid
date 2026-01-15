@@ -69,7 +69,7 @@
             background: #e3f2fd;
             border: 2px solid #1976d2;
             border-radius: 8px;
-            max-width: 350px;
+            max-width: 300px;
         }
         .nano-popup .leaflet-popup-tip {
             background: #1976d2;
@@ -77,12 +77,13 @@
         .codigo-final {
             background: #1976d2;
             color: white;
-            padding: 8px 12px;
+            padding: 12px 15px;
             border-radius: 5px;
-            font-size: 16px;
+            font-size: 18px;
             font-weight: bold;
             margin: 10px 0;
             text-align: center;
+            letter-spacing: 1px;
         }
     </style>
 </head>
@@ -812,22 +813,12 @@ mymap.on("click", function (e) {
                 fillOpacity: 0.5,
                 className: 'highlighted-polygon'
             }).addTo(selectionLayer);
-            
-            L.marker(closestWatermark.center, {
-                icon: L.divIcon({ 
-                    className: 'micro-selection-label', 
-                    html: `<div style="background: rgba(255,255,255,0.95); color: #3498db; padding: 2px 5px; border-radius: 3px; border: 2px solid #3498db; font-weight: bold;">${closestWatermark.code}</div>`, 
-                    iconSize: [50, 22],
-                    iconAnchor: [25, 11]
-                }),
-                zIndexOffset: 1000
-            }).addTo(selectionLayer);
         }
         return; // No mostrar popup
         
     } else {
         // NIVEL NANO - AQUÍ SÍ MOSTRAR POPUP COMPLETO
-        titulo = "CÓDIGO POSTAL FINAL";
+        titulo = "CÓDIGO POSTAL";
         
         // Buscar en cache nano primero
         const closestWatermark = findClosestWatermark(e.latlng, nanoWatermarkCache, 0.002);
@@ -849,36 +840,13 @@ mymap.on("click", function (e) {
             // Código completo
             finalCode = `${macroID}-${microCode}-${nanoCode}`;
             
-            // MOSTRAR CUADRO NANO
+            // MOSTRAR CUADRO NANO SOMBREADO (sin globo blanco)
             L.polygon(closestWatermark.bounds, {
                 color: "#2980b9", 
                 weight: 3, 
                 fillColor: "#2980b9",
                 fillOpacity: 0.5,
                 className: 'highlighted-polygon'
-            }).addTo(selectionLayer);
-            
-            // OCULTAR LABEL PERMANENTE TEMPORALMENTE
-            labelLayer.eachLayer(function(layer) {
-                if (layer instanceof L.Marker) {
-                    const markerLatLng = layer.getLatLng();
-                    const distance = markerLatLng.distanceTo(closestWatermark.center);
-                    if (distance < 5) {
-                        layer.setOpacity(0);
-                        hiddenLabels.push(layer);
-                    }
-                }
-            });
-            
-            // Mostrar marcador de selección
-            L.marker(closestWatermark.center, {
-                icon: L.divIcon({ 
-                    className: 'nano-selection-label', 
-                    html: `<div style="background: white; color: #2980b9; padding: 2px 5px; border-radius: 3px; border: 2px solid #2980b9; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">${nanoCode}</div>`, 
-                    iconSize: [45, 22],
-                    iconAnchor: [22, 11]
-                }),
-                zIndexOffset: 1000
             }).addTo(selectionLayer);
             
             // Mostrar borde micro para referencia
@@ -907,40 +875,12 @@ mymap.on("click", function (e) {
                 getPointInGrid(coords, indices.microIx + indices.nix/NANO_RES, indices.microIy + (indices.niy+1)/NANO_RES, 24, 24)
             ];
             
-            const nanoCenter = getPointInGrid(coords, 
-                indices.microIx + (indices.nix + 0.5)/NANO_RES,
-                indices.microIy + (indices.niy + 0.5)/NANO_RES,
-                24, 24
-            );
-            
             L.polygon(nanoBounds, {
                 color: "#2980b9", 
                 weight: 3, 
                 fillColor: "#2980b9",
                 fillOpacity: 0.5,
                 className: 'highlighted-polygon'
-            }).addTo(selectionLayer);
-            
-            // Ocultar label permanente si existe
-            labelLayer.eachLayer(function(layer) {
-                if (layer instanceof L.Marker) {
-                    const markerLatLng = layer.getLatLng();
-                    const distance = markerLatLng.distanceTo(nanoCenter);
-                    if (distance < 5) {
-                        layer.setOpacity(0);
-                        hiddenLabels.push(layer);
-                    }
-                }
-            });
-            
-            L.marker(nanoCenter, {
-                icon: L.divIcon({ 
-                    className: 'nano-selection-label', 
-                    html: `<div style="background: white; color: #2980b9; padding: 2px 5px; border-radius: 3px; border: 2px solid #2980b9; font-weight: bold;">${nanoCode}</div>`, 
-                    iconSize: [45, 22],
-                    iconAnchor: [22, 11]
-                }),
-                zIndexOffset: 1000
             }).addTo(selectionLayer);
         }
 
@@ -968,36 +908,21 @@ mymap.on("click", function (e) {
             .setLatLng(popupLatLng)
             .setContent(`
                 <div style="text-align:center; padding: 15px; max-width: 320px;">
-                    <div style="font-size: 18px; color: #1976d2; margin-bottom: 10px; font-weight: bold;">
-                        📍 CÓDIGO POSTAL FINAL
-                    </div>
-                    
-                    <div style="background: #f8f9fa; padding: 10px; border-radius: 5px; margin-bottom: 10px; text-align: left;">
-                        <div style="font-size: 13px; color: #495057; margin-bottom: 5px;">
-                            <strong>Código postal:</strong> ${finalCode}
-                        </div>
-                        <div style="font-size: 13px; color: #495057; margin-bottom: 5px;">
-                            <strong>Últimos 6 dígitos:</strong> ${ultimos6Digitos}
-                        </div>
-                        <div style="font-size: 13px; color: #495057; margin-bottom: 5px;">
-                            <strong>VM_LEVEL:</strong> ${vmLevel || "No encontrado"}
-                        </div>
-                        <div style="font-size: 13px; color: #495057;">
-                            <strong>Coordenadas:</strong> ${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}
-                        </div>
+                    <div style="font-size: 16px; color: #1976d2; margin-bottom: 10px; font-weight: bold;">
+                        📍 CÓDIGO POSTAL
                     </div>
                     
                     <div class="codigo-final">
                         ${codigoFinal}
                     </div>
                     
-                    <div style="font-size: 11px; color: #666; margin: 10px 0; font-style: italic;">
-                        Formato: VM_LEVEL + últimos 6 dígitos del código postal
+                    <div style="font-size: 12px; color: #495057; margin: 10px 0; padding: 8px; background: #f8f9fa; border-radius: 4px;">
+                        GPS: ${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}
                     </div>
                     
                     <div style="display: flex; gap: 10px; justify-content: center; margin-top: 15px;">
                         <button class="btn-nav" onclick="window.open('https://www.google.com/maps?q=${e.latlng.lat},${e.latlng.lng}')">📍 MAPS</button>
-                        <button class="btn-ws" onclick="window.open('https://wa.me/?text=${encodeURIComponent(`📍 Código Postal: ${finalCode}\nCódigo Final: ${codigoFinal}\nGPS: ${e.latlng.lat.toFixed(6)},${e.latlng.lng.toFixed(6)}`)}')">💬 WS</button>
+                        <button class="btn-ws" onclick="window.open('https://wa.me/?text=${encodeURIComponent(`📍 Código Postal: ${codigoFinal}\nGPS: ${e.latlng.lat.toFixed(6)},${e.latlng.lng.toFixed(6)}`)}')">💬 WS</button>
                     </div>
                 </div>
             `)
@@ -1338,3 +1263,4 @@ updateGridAndLabels();
 </script>
 </body>
 </html>
+
