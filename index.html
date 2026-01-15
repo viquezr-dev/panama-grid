@@ -135,6 +135,9 @@ function generarCodigoMacro(feature) {
     if (feature.properties && feature.properties.codigo_macro) {
         return feature.properties.codigo_macro;
     }
+    // Fallback por si algún cuadro no tiene el campo
+    return "A000"; // Valor por defecto
+}
     // Fallback si no existe el campo
     const primeraLetra = feature.properties.codigo ? feature.properties.codigo.charAt(0) : 'A';
     const fid = feature.properties.fid || 0;
@@ -262,6 +265,7 @@ function obtenerUltimos6Digitos(codigoCompleto) {
 }
 
 function updateGridAndLabels() {
+    function updateGridAndLabels() {
     gridLayer.clearLayers();
     labelLayer.clearLayers();
     microWatermarkCache.clear();
@@ -278,18 +282,21 @@ function updateGridAndLabels() {
         
         const coords = f.geometry.coordinates[0];
         
-        // Labels para macro (zoom 10-14) - YA NO MOSTRAREMOS POPUP EN ESTE NIVEL
+        // Obtener el código macro del campo codigo_macro
+        const codigoMacro = generarCodigoMacro(f);
+        
+        // Labels para macro (zoom 10-14) - USAR EL CÓDIGO MACRO DEL CAMPO
         if (z >= 10 && z < 14 && labelsEnabled) {
             L.marker(fBounds.getCenter(), {
                 icon: L.divIcon({ 
                     className: 'watermark-label-fixed', 
-                    html: generarCodigoMacro(f), 
+                    html: codigoMacro, 
                     iconSize: [60, 20] 
                 })
             }).addTo(labelLayer);
         }
         
-        // Labels y cache para micro (zoom 14-17) - YA NO MOSTRAREMOS POPUP EN ESTE NIVEL
+        // Labels y cache para micro (zoom 14-17)
         for (let i = 0; i < 24; i++) {
             for (let j = 0; j < 24; j++) {
                 const center = getPointInGrid(coords, i + 0.5, j + 0.5, 24, 24);
@@ -305,7 +312,8 @@ function updateGridAndLabels() {
                         getPointInGrid(coords, i+1, j+1, 24, 24),
                         getPointInGrid(coords, i, j+1, 24, 24)
                     ],
-                    indices: { ix: i, iy: j }
+                    indices: { ix: i, iy: j },
+                    codigoMacro: codigoMacro // Agregar el código macro al cache
                 });
                 
                 if (z >= 14 && z < 17 && labelsEnabled) {
@@ -320,7 +328,7 @@ function updateGridAndLabels() {
             }
         }
         
-        // Cache para nano (zoom >= 17) - SOLO AQUÍ MOSTRAREMOS POPUP
+        // Cache para nano (zoom >= 17)
         if (z >= 17) {
             for (let i = 0; i < 24; i++) {
                 for (let j = 0; j < 24; j++) {
@@ -341,7 +349,8 @@ function updateGridAndLabels() {
                                         getPointInGrid(coords, i + (ni+1)/NANO_RES, j + (nj+1)/NANO_RES, 24, 24),
                                         getPointInGrid(coords, i + ni/NANO_RES, j + (nj+1)/NANO_RES, 24, 24)
                                     ],
-                                    indices: { microIx: i, microIy: j, nix: ni, niy: nj }
+                                    indices: { microIx: i, microIy: j, nix: ni, niy: nj },
+                                    codigoMacro: codigoMacro // Agregar el código macro al cache
                                 });
                                 
                                 if (labelsEnabled && ni % 5 === 0 && nj % 5 === 0) {
@@ -1133,8 +1142,11 @@ document.getElementById('search-btn').addEventListener('click', () => {
     const parts = code.split('-');
     const macroPart = parts[0];
     
-    // Buscar usando el nuevo formato de código
-    let f = rawCuadricula.features.find(feat => generarCodigoMacro(feat) === macroPart);
+    // Buscar usando el campo codigo_macro
+    let f = rawCuadricula.features.find(feat => {
+        const codigoMacro = generarCodigoMacro(feat);
+        return codigoMacro === macroPart;
+    });
     
     if (f) {
         if (parts.length > 1) {
@@ -1263,4 +1275,5 @@ updateGridAndLabels();
 </script>
 </body>
 </html>
+
 
