@@ -1177,70 +1177,307 @@ function mostrarPopupAreaNoDefinida(latlng) {
 
 // BUSCADOR
 document.getElementById('search-btn').addEventListener('click', () => {
-    const code = document.getElementById('search-input').value.trim().toUpperCase();
-    if (!code || !rawCuadricula) return;
+    const input = document.getElementById('search-input').value.trim().toUpperCase();
+    if (!input || !rawCuadricula) return;
     
-    const parts = code.split('-');
+    console.log(`Buscando: "${input}"`);
+    
+    // FORMATO 1: Código postal final (A7399-3M1J54)
+    if (input.includes('-') && input.split('-').length === 2) {
+        const [vmLevel, ultimos6] = input.split('-');
+        
+        // Buscar en TODOS los cuadros macro
+        let encontrado = false;
+        
+        rawCuadricula.features.forEach((feat, featIndex) => {
+            const codigoMacro = generarCodigoMacro(feat);
+            
+            // Simular clic en cada celda nano para generar códigos
+            for (let i = 0; i < 24 && !encontrado; i++) {
+                for (let j = 0; j < 24 && !encontrado; j++) {
+                    for (let ni = 0; ni < NANO_RES && !encontrado; ni++) {
+                        for (let nj = 0; nj < NANO_RES && !encontrado; nj++) {
+                            const microCode = getMicroCodeFromIndices(i, j);
+                            const nanoCode = generateNanoCode(ni, nj, i, j);
+                            const panamaCode = `${codigoMacro}-${microCode}-${nanoCode}`;
+                            const ultimos6Panama = obtenerUltimos6Digitos(panamaCode);
+                            
+                            if (ultimos6Panama === ultimos6) {
+                                console.log(`Encontrado: ${panamaCode}`);
+                                
+                                // Calcular coordenadas del centro de la celda nano
+                                const coords = feat.geometry.coordinates[0];
+                                const center = getPointInGrid(coords, 
+                                    i + (ni + 0.5)/NANO_RES, 
+                                    j + (nj + 0.5)/NANO_RES, 
+                                    24, 24);
+                                
+                                mymap.setView(center, 18);
+                                selectionLayer.clearLayers();
+                                restoreHiddenLabels();
+                                
+                                // Mostrar celda nano
+                                const nanoBounds = [
+                                    getPointInGrid(coords, i + ni/NANO_RES, j + nj/NANO_RES, 24, 24),
+                                    getPointInGrid(coords, i + (ni+1)/NANO_RES, j + nj/NANO_RES, 24, 24),
+                                    getPointInGrid(coords, i + (ni+1)/NANO_RES, j + (nj+1)/NANO_RES, 24, 24),
+                                    getPointInGrid(coords, i + ni/NANO_RES, j + (nj+1)/NANO_RES, 24, 24)
+                                ];
+                                
+                                L.polygon(nanoBounds, {
+                                    color: "#2980b9", 
+                                    weight: 3, 
+                                    fillColor: "#2980b9",
+                                    fillOpacity: 0.5,
+                                    className: 'highlighted-polygon'
+                                }).addTo(selectionLayer);
+                                
+                                // Mostrar popup automático
+                                setTimeout(() => {
+                                    const popupLatLng = L.latLng(center[0] + 0.0004, center[1]);
+                                    const codigoFinal = `${vmLevel}-${ultimos6}`;
+                                    
+                                    L.popup({offset: [0, -60], className: 'nano-popup'})
+                                        .setLatLng(popupLatLng)
+                                        .setContent(`
+                                            <div style="text-align:center; padding: 15px; max-width: 350px;">
+                                                <div style="font-size: 16px; color: #1976d2; margin-bottom: 10px; font-weight: bold;">
+                                                    📍 RESULTADO DE BÚSQUEDA
+                                                </div>
+                                                <div class="codigo-completo">
+                                                    <strong>PanamaCode:</strong> ${panamaCode}
+                                                </div>
+                                                <div class="codigo-final">
+                                                    ${codigoFinal}
+                                                </div>
+                                                <div style="font-size: 12px; color: #495057; margin: 10px 0; padding: 8px; background: #f8f9fa; border-radius: 4px;">
+                                                    GPS: ${center[0].toFixed(6)}, ${center[1].toFixed(6)}
+                                                </div>
+                                            </div>
+                                        `)
+                                        .openOn(mymap);
+                                }, 500);
+                                
+                                encontrado = true;
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        
+        if (!encontrado) {
+            alert(`No se encontró el código postal: ${input}`);
+        }
+        return;
+    }
+    
+    // FORMATO 2: PanamaCode completo (AA4-P3M1-J54) o parcial
+    const parts = input.split('-');
     const macroPart = parts[0];
     
-    // Buscar usando el campo codigo_macro
+    // Buscar código macro
     let f = rawCuadricula.features.find(feat => {
         const codigoMacro = generarCodigoMacro(feat);
         return codigoMacro === macroPart;
     });
     
     if (f) {
-        if (parts.length > 1) {
+        // Si solo es el macro (AA4)
+        if (parts.length === 1) {
+            mymap.fitBounds(L.geoJSON(f).getBounds(), {padding: [50, 50]});
+            return;
+        }
+        
+        // Si es macro-micro (AA4-P3M1)
+        if (parts.length === 2) {
             const microPart = parts[1];
             if (microPart && microPart.length >= 2) {
-                const firstChar = microPart.charAt(0);
-                const secondChar = microPart.charAt(1);
-                const ix = ALFABETO.indexOf(firstChar);
-                const iy = ALFABETO.indexOf(secondChar);
+                // Intentar extraer letras para índices
+                const letras = microPart.match(/[A-Z]/g);
+                if (letras && letras.length >= 2) {
+                    const ix = ALFABETO.indexOf(letras[0]);
+                    const iy = ALFABETO.indexOf(letras[1]);
+                    
+                    if (ix !== -1 && iy !== -1) {
+                        const coords = f.geometry.coordinates[0];
+                        const center = getPointInGrid(coords, ix + 0.5, iy + 0.5, 24, 24);
+                        
+                        mymap.setView(center, 16);
+                        selectionLayer.clearLayers();
+                        restoreHiddenLabels();
+                        
+                        const mRect = [
+                            getPointInGrid(coords, ix, iy, 24, 24),
+                            getPointInGrid(coords, ix+1, iy, 24, 24),
+                            getPointInGrid(coords, ix+1, iy+1, 24, 24),
+                            getPointInGrid(coords, ix, iy+1, 24, 24)
+                        ];
+                        
+                        L.polygon(mRect, {
+                            color: "#3498db", 
+                            weight: 3, 
+                            fillColor: "#3498db",
+                            fillOpacity: 0.5,
+                            className: 'highlighted-polygon'
+                        }).addTo(selectionLayer);
+                        
+                        return;
+                    }
+                }
+            }
+        }
+        
+        // Si es completo macro-micro-nano (AA4-P3M1-J54)
+        if (parts.length === 3) {
+            const microPart = parts[1];
+            const nanoPart = parts[2];
+            
+            if (microPart && microPart.length >= 2 && nanoPart && nanoPart.length >= 2) {
+                const letrasMicro = microPart.match(/[A-Z]/g);
+                const letraNano = nanoPart.charAt(0);
+                const numerosNano = nanoPart.slice(1);
                 
-                if (ix !== -1 && iy !== -1) {
-                    const coords = f.geometry.coordinates[0];
-                    const center = getPointInGrid(coords, ix + 0.5, iy + 0.5, 24, 24);
+                if (letrasMicro && letrasMicro.length >= 2 && letraNano) {
+                    const ix = ALFABETO.indexOf(letrasMicro[0]);
+                    const iy = ALFABETO.indexOf(letrasMicro[1]);
+                    const nanoLetraIndex = ALFABETO.indexOf(letraNano);
                     
-                    const zoomLevel = parts.length > 2 ? 18 : 16;
-                    mymap.setView(center, zoomLevel);
-                    
-                    selectionLayer.clearLayers();
-                    restoreHiddenLabels();
-                    
-                    const mRect = [
-                        getPointInGrid(coords, ix, iy, 24, 24),
-                        getPointInGrid(coords, ix+1, iy, 24, 24),
-                        getPointInGrid(coords, ix+1, iy+1, 24, 24),
-                        getPointInGrid(coords, ix, iy+1, 24, 24)
-                    ];
-                    
-                    const microCode = getMicroCodeFromIndices(ix, iy);
-                    
-                    L.polygon(mRect, {
-                        color: "#3498db", 
-                        weight: 3, 
-                        fillColor: "#3498db",
-                        fillOpacity: 0.5,
-                        className: 'highlighted-polygon'
-                    }).addTo(selectionLayer);
-                    
-                    L.marker(center, {
-                        icon: L.divIcon({ 
-                            className: 'micro-label-fixed', 
-                            html: microCode, 
-                            iconSize: [60, 18] 
-                        })
-                    }).addTo(selectionLayer);
-                    
-                    return;
+                    if (ix !== -1 && iy !== -1 && nanoLetraIndex !== -1) {
+                        // Buscar la celda nano específica
+                        const coords = f.geometry.coordinates[0];
+                        
+                        for (let ni = 0; ni < NANO_RES; ni++) {
+                            for (let nj = 0; nj < NANO_RES; nj++) {
+                                const nanoCodeGen = generateNanoCode(ni, nj, ix, iy);
+                                if (nanoCodeGen === nanoPart) {
+                                    const center = getPointInGrid(coords, 
+                                        ix + (ni + 0.5)/NANO_RES, 
+                                        iy + (nj + 0.5)/NANO_RES, 
+                                        24, 24);
+                                    
+                                    mymap.setView(center, 18);
+                                    selectionLayer.clearLayers();
+                                    restoreHiddenLabels();
+                                    
+                                    const nanoBounds = [
+                                        getPointInGrid(coords, ix + ni/NANO_RES, iy + nj/NANO_RES, 24, 24),
+                                        getPointInGrid(coords, ix + (ni+1)/NANO_RES, iy + nj/NANO_RES, 24, 24),
+                                        getPointInGrid(coords, ix + (ni+1)/NANO_RES, iy + (nj+1)/NANO_RES, 24, 24),
+                                        getPointInGrid(coords, ix + ni/NANO_RES, iy + (nj+1)/NANO_RES, 24, 24)
+                                    ];
+                                    
+                                    L.polygon(nanoBounds, {
+                                        color: "#2980b9", 
+                                        weight: 3, 
+                                        fillColor: "#2980b9",
+                                        fillOpacity: 0.5,
+                                        className: 'highlighted-polygon'
+                                    }).addTo(selectionLayer);
+                                    
+                                    return;
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
         
         mymap.fitBounds(L.geoJSON(f).getBounds(), {padding: [50, 50]});
-    } else {
-        alert("Código postal no encontrado: " + code);
+    } 
+    // FORMATO 3: Solo últimos 6 dígitos (3M1J54)
+    else if (input.length === 6 && !input.includes('-')) {
+        // Buscar en todos los cuadros
+        let encontrado = false;
+        
+        rawCuadricula.features.forEach((feat, featIndex) => {
+            if (encontrado) return;
+            
+            const codigoMacro = generarCodigoMacro(feat);
+            
+            for (let i = 0; i < 24 && !encontrado; i++) {
+                for (let j = 0; j < 24 && !encontrado; j++) {
+                    for (let ni = 0; ni < NANO_RES && !encontrado; ni++) {
+                        for (let nj = 0; nj < NANO_RES && !encontrado; nj++) {
+                            const microCode = getMicroCodeFromIndices(i, j);
+                            const nanoCode = generateNanoCode(ni, nj, i, j);
+                            const panamaCode = `${codigoMacro}-${microCode}-${nanoCode}`;
+                            const ultimos6 = obtenerUltimos6Digitos(panamaCode);
+                            
+                            if (ultimos6 === input) {
+                                console.log(`Encontrado últimos 6 dígitos: ${panamaCode}`);
+                                
+                                const coords = feat.geometry.coordinates[0];
+                                const center = getPointInGrid(coords, 
+                                    i + (ni + 0.5)/NANO_RES, 
+                                    j + (nj + 0.5)/NANO_RES, 
+                                    24, 24);
+                                
+                                mymap.setView(center, 18);
+                                selectionLayer.clearLayers();
+                                restoreHiddenLabels();
+                                
+                                const nanoBounds = [
+                                    getPointInGrid(coords, i + ni/NANO_RES, j + nj/NANO_RES, 24, 24),
+                                    getPointInGrid(coords, i + (ni+1)/NANO_RES, j + nj/NANO_RES, 24, 24),
+                                    getPointInGrid(coords, i + (ni+1)/NANO_RES, j + (nj+1)/NANO_RES, 24, 24),
+                                    getPointInGrid(coords, i + ni/NANO_RES, j + (nj+1)/NANO_RES, 24, 24)
+                                ];
+                                
+                                L.polygon(nanoBounds, {
+                                    color: "#2980b9", 
+                                    weight: 3, 
+                                    fillColor: "#2980b9",
+                                    fillOpacity: 0.5,
+                                    className: 'highlighted-polygon'
+                                }).addTo(selectionLayer);
+                                
+                                encontrado = true;
+                                
+                                // Buscar VM_LEVEL para este punto
+                                const vmLevel = obtenerVMLEVEL(L.latLng(center[0], center[1]));
+                                const codigoFinal = vmLevel ? `${vmLevel}-${input}` : `SINVM-${input}`;
+                                
+                                setTimeout(() => {
+                                    const popupLatLng = L.latLng(center[0] + 0.0004, center[1]);
+                                    
+                                    L.popup({offset: [0, -60], className: 'nano-popup'})
+                                        .setLatLng(popupLatLng)
+                                        .setContent(`
+                                            <div style="text-align:center; padding: 15px; max-width: 350px;">
+                                                <div style="font-size: 16px; color: #1976d2; margin-bottom: 10px; font-weight: bold;">
+                                                    📍 BÚSQUEDA POR ÚLTIMOS 6 DÍGITOS
+                                                </div>
+                                                <div class="codigo-completo">
+                                                    <strong>PanamaCode:</strong> ${panamaCode}
+                                                </div>
+                                                <div class="codigo-final">
+                                                    ${codigoFinal}
+                                                </div>
+                                                <div style="font-size: 12px; color: #495057; margin: 10px 0; padding: 8px; background: #f8f9fa; border-radius: 4px;">
+                                                    GPS: ${center[0].toFixed(6)}, ${center[1].toFixed(6)}
+                                                </div>
+                                            </div>
+                                        `)
+                                        .openOn(mymap);
+                                }, 500);
+                                
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        
+        if (!encontrado) {
+            alert(`No se encontraron coincidencias para: ${input}`);
+        }
+    }
+    else {
+        alert("Formato no reconocido. Use:\n• Código macro: AA4\n• PanamaCode: AA4-P3M1-J54\n• Código postal: A7399-3M1J54\n• Últimos 6 dígitos: 3M1J54");
     }
 });
 
@@ -1316,6 +1553,7 @@ updateGridAndLabels();
 </script>
 </body>
 </html>
+
 
 
 
