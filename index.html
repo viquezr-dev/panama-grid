@@ -1547,7 +1547,104 @@ mymap.on('zoomstart movestart', function() {
 
 // Inicializar
 updateGridAndLabels();
+// ==============================================
+// PRUEBA DE VERIFICACIÓN DE COLISIONES - OPCIÓN 3
+// ==============================================
+
+function pruebaColisionesOpcion3() {
+    console.clear();
+    console.log("🧪 === PRUEBA DE COLISIONES - OPCIÓN 3 ===");
+    
+    if (!rawCuadricula || rawCuadricula.features.length === 0) {
+        console.error("Error: Cuadrícula no cargada");
+        alert("Espera a que cargue la cuadrícula primero");
+        return;
+    }
+    
+    console.log("Generando códigos postales con la nueva función...");
+    
+    const hashMap = new Map(); // Para detectar colisiones
+    const colisiones = [];
+    let totalVerificados = 0;
+    
+    // Tomar primeros 20 cuadros para prueba
+    const cuadrosPrueba = rawCuadricula.features.slice(0, Math.min(20, rawCuadricula.features.length));
+    
+    // VM_LEVELs de ejemplo (de tu estafetas.geojson)
+    const vmLevelsEjemplo = ['E8399', 'I2499', 'E6312', 'C8999', 'F3105', 'K4299', 'G8199', 'F3099', 'F3208', 'I2301'];
+    
+    cuadrosPrueba.forEach((feature, idxCuadro) => {
+        const codigoMacro = generarCodigoMacro(feature);
+        const vmLevel = vmLevelsEjemplo[idxCuadro % vmLevelsEjemplo.length] || 'E8399';
+        
+        // Verificar 50 códigos por cuadro
+        for (let s = 0; s < 50; s++) {
+            const i = s % 24;
+            const j = (s * 2) % 24;
+            const ni = (s * 3) % NANO_RES;
+            const nj = (s * 5) % NANO_RES;
+            
+            const microCode = getMicroCodeFromIndices(i, j);
+            const nanoCode = generateNanoCode(ni, nj, i, j);
+            const panamaCode = `${codigoMacro}-${microCode}-${nanoCode}`;
+            
+            // USAR LA NUEVA FUNCIÓN (Opción 3)
+            const codigoPostalFinal = generarCodigoPostalUnico(panamaCode, vmLevel);
+            
+            totalVerificados++;
+            
+            // Verificar colisiones
+            if (hashMap.has(codigoPostalFinal)) {
+                const existente = hashMap.get(codigoPostalFinal);
+                colisiones.push({
+                    codigo: codigoPostalFinal,
+                    ubicacion1: existente,
+                    ubicacion2: {panamaCode, vmLevel, codigoMacro}
+                });
+            } else {
+                hashMap.set(codigoPostalFinal, {panamaCode, vmLevel, codigoMacro});
+            }
+        }
+    });
+    
+    console.log("=== RESULTADOS DE LA PRUEBA ===");
+    console.log(`Códigos generados: ${totalVerificados}`);
+    console.log(`Códigos únicos: ${hashMap.size}`);
+    console.log(`Colisiones encontradas: ${colisiones.length}`);
+    
+    if (colisiones.length > 0) {
+        console.error("❌ PROBLEMA: ¡Todavía hay colisiones!");
+        console.log("Ejemplos de colisiones:");
+        colisiones.slice(0, 5).forEach((col, idx) => {
+            console.log(`${idx+1}. ${col.codigo}`);
+            console.log(`   Ubicación 1: ${col.ubicacion1.panamaCode} (${col.ubicacion1.vmLevel})`);
+            console.log(`   Ubicación 2: ${col.ubicacion2.panamaCode} (${col.ubicacion2.vmLevel})`);
+            console.log("   ---");
+        });
+        alert(`❌ La Opción 3 NO eliminó las colisiones.\n\nEncontradas: ${colisiones.length} colisiones en ${totalVerificados} códigos.\n\nRevisa la consola (F12) para detalles.`);
+    } else {
+        console.log("✅ ¡EXCELENTE! CERO COLISIONES detectadas.");
+        console.log("La Opción 3 funciona correctamente.");
+        alert(`✅ PRUEBA EXITOSA\n\n${totalVerificados} códigos generados\n${hashMap.size} códigos únicos\n0 colisiones detectadas\n\n¡Puedes implementar la Opción 3!`);
+    }
+    
+    return colisiones.length === 0;
+}
+
+// Agrega un botón temporal para ejecutar la prueba
+setTimeout(() => {
+    const pruebaBtn = document.createElement('button');
+    pruebaBtn.id = 'prueba-opcion3';
+    pruebaBtn.innerHTML = '🧪 PROBAR OPCIÓN 3';
+    pruebaBtn.style.cssText = 'position: absolute; bottom: 190px; left: 10px; z-index: 5000; background: #9b59b6; color: white; padding: 10px; border-radius: 5px; border: none; cursor: pointer; font-size: 11px; font-weight: bold;';
+    document.body.appendChild(pruebaBtn);
+    
+    pruebaBtn.addEventListener('click', pruebaColisionesOpcion3);
+}, 3000);
+
+    
 </script>
 </body>
 </html>
+
 
