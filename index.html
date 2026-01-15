@@ -131,17 +131,12 @@ let hiddenLabels = [];
 
 // Función para generar el código macro usando el campo codigo_macro del archivo cuadricula.geojson
 function generarCodigoMacro(feature) {
-    // Usar el campo codigo_macro del archivo cuadricula.geojson
+    // Usar directamente el campo codigo_macro del archivo cuadricula.geojson
     if (feature.properties && feature.properties.codigo_macro) {
         return feature.properties.codigo_macro;
     }
     // Fallback por si algún cuadro no tiene el campo
     return "A000"; // Valor por defecto
-}
-    // Fallback si no existe el campo
-    const primeraLetra = feature.properties.codigo ? feature.properties.codigo.charAt(0) : 'A';
-    const fid = feature.properties.fid || 0;
-    return primeraLetra + '0' + fid.toString().padStart(3, '0');
 }
 
 // Función hash mejorada para generar códigos desordenados
@@ -265,7 +260,6 @@ function obtenerUltimos6Digitos(codigoCompleto) {
 }
 
 function updateGridAndLabels() {
-    function updateGridAndLabels() {
     gridLayer.clearLayers();
     labelLayer.clearLayers();
     microWatermarkCache.clear();
@@ -1275,5 +1269,3 @@ updateGridAndLabels();
 </script>
 </body>
 </html>
-
-
