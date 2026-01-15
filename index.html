@@ -69,7 +69,7 @@
             background: #e3f2fd;
             border: 2px solid #1976d2;
             border-radius: 8px;
-            max-width: 300px;
+            max-width: 350px;
         }
         .nano-popup .leaflet-popup-tip {
             background: #1976d2;
@@ -84,6 +84,16 @@
             margin: 10px 0;
             text-align: center;
             letter-spacing: 1px;
+        }
+        .codigo-completo {
+            background: #f8f9fa;
+            color: #495057;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 14px;
+            margin: 8px 0;
+            text-align: center;
+            border: 1px solid #dee2e6;
         }
     </style>
 </head>
@@ -136,7 +146,7 @@ function generarCodigoMacro(feature) {
         return feature.properties.codigo_macro;
     }
     // Fallback por si algún cuadro no tiene el campo
-    return "A000"; // Valor por defecto
+    return "SINCOD"; // Valor por defecto mejorado
 }
 
 // Función hash mejorada para generar códigos desordenados
@@ -166,13 +176,16 @@ function getPointInGrid(coords, col, row, totalCols, totalRows) {
     return [lat, lng];
 }
 
-// Función para obtener código micro LNLN
+// Función para obtener código micro LNLN DETERMINISTA (sin números aleatorios)
 function getMicroCodeFromIndices(ix, iy) {
-    const letra1 = ALFABETO[ix];
-    const num1 = Math.floor(Math.random() * 10); // Número aleatorio 0-9
-    const letra2 = ALFABETO[iy];
-    const num2 = Math.floor(Math.random() * 10); // Número aleatorio 0-9
-    return `${letra1}${num1}${letra2}${num2}`;
+    // Función determinista basada en índices
+    const hash = (ix * 37) ^ (iy * 17);
+    const letterIndex1 = Math.abs((hash * 11) % 24);
+    const number1 = Math.abs((hash * 7) % 10);
+    const letterIndex2 = Math.abs((hash * 13) % 24);
+    const number2 = Math.abs((hash * 19) % 10);
+    
+    return `${ALFABETO[letterIndex1]}${number1}${ALFABETO[letterIndex2]}${number2}`;
 }
 
 function getCacheKey(featureId, level, i, j, ni = null, nj = null) {
@@ -278,6 +291,7 @@ function updateGridAndLabels() {
         
         // Obtener el código macro del campo codigo_macro
         const codigoMacro = generarCodigoMacro(f);
+        console.log(`Cuadro ${featureIndex}: codigo_macro = "${codigoMacro}"`);
         
         // Labels para macro (zoom 10-14) - USAR EL CÓDIGO MACRO DEL CAMPO
         if (z >= 10 && z < 14 && labelsEnabled) {
@@ -519,6 +533,10 @@ function updateGridAndLabels() {
 // Carga de Datos
 $.getJSON("cuadricula.geojson", d => { 
     rawCuadricula = d; 
+    console.log("Cuadrícula cargada. Primeros 3 cuadros:");
+    d.features.slice(0, 3).forEach((f, i) => {
+        console.log(`  Cuadro ${i}: codigo_macro = "${f.properties.codigo_macro}"`);
+    });
     L.geoJSON(d, {style: {color: "#3498db", weight: 1, fillOpacity: 0.05}}).addTo(cuadriculaFisicaLayer);
     updateGridAndLabels(); 
 });
@@ -910,9 +928,13 @@ mymap.on("click", function (e) {
         const popup = L.popup({offset: popupOffset, className: 'nano-popup'})
             .setLatLng(popupLatLng)
             .setContent(`
-                <div style="text-align:center; padding: 15px; max-width: 320px;">
+                <div style="text-align:center; padding: 15px; max-width: 350px;">
                     <div style="font-size: 16px; color: #1976d2; margin-bottom: 10px; font-weight: bold;">
                         📍 CÓDIGO POSTAL
+                    </div>
+                    
+                    <div class="codigo-completo">
+                        <strong>PanamaCode:</strong> ${finalCode}
                     </div>
                     
                     <div class="codigo-final">
@@ -925,7 +947,7 @@ mymap.on("click", function (e) {
                     
                     <div style="display: flex; gap: 10px; justify-content: center; margin-top: 15px;">
                         <button class="btn-nav" onclick="window.open('https://www.google.com/maps?q=${e.latlng.lat},${e.latlng.lng}')">📍 MAPS</button>
-                        <button class="btn-ws" onclick="window.open('https://wa.me/?text=${encodeURIComponent(`📍 Código Postal: ${codigoFinal}\nGPS: ${e.latlng.lat.toFixed(6)},${e.latlng.lng.toFixed(6)}`)}')">💬 WS</button>
+                        <button class="btn-ws" onclick="window.open('https://wa.me/?text=${encodeURIComponent(`📍 PanamaCode: ${finalCode}\nCódigo Postal: ${codigoFinal}\nGPS: ${e.latlng.lat.toFixed(6)},${e.latlng.lng.toFixed(6)}`)}')">💬 WS</button>
                     </div>
                 </div>
             `)
