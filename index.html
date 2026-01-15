@@ -30,13 +30,11 @@
             50% { fill-opacity: 0.7; }
             100% { fill-opacity: 0.3; }
         }
-        /* AGREGAR AQUÍ LOS ESTILOS PARA EL POPUP DE ADVERTENCIA */
         .warning-popup .leaflet-popup-content-wrapper {
             background: #fff3cd;
             border: 2px solid #ffc107;
             border-radius: 8px;
         }
-
         .warning-popup .leaflet-popup-tip {
             background: #ffc107;
         }
@@ -67,7 +65,25 @@
         .grid-macro { stroke-dasharray: none; }
         .grid-micro { stroke-dasharray: 5, 5; }
         .grid-nano { stroke-dasharray: 2, 3; }
-    
+        .nano-popup .leaflet-popup-content-wrapper {
+            background: #e3f2fd;
+            border: 2px solid #1976d2;
+            border-radius: 8px;
+            max-width: 350px;
+        }
+        .nano-popup .leaflet-popup-tip {
+            background: #1976d2;
+        }
+        .codigo-final {
+            background: #1976d2;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 5px;
+            font-size: 16px;
+            font-weight: bold;
+            margin: 10px 0;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -89,7 +105,6 @@ const mymap = L.map('mapid').setView([8.50, -80.0], 8);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mymap);
 
 // Capas
-// NO COPIES ESTE CODIGO, DESARROLLADO POR RAUL VIQUEZ....
 const zonasGeoLayer = L.layerGroup().addTo(mymap);
 const cuadriculaFisicaLayer = L.layerGroup().addTo(mymap);
 const gridLayer = L.layerGroup().addTo(mymap);
@@ -113,11 +128,15 @@ const nanoWatermarkCache = new Map();
 // Variable para almacenar labels temporales que se deben restaurar
 let hiddenLabels = [];
 
-// Función para generar el código macro según el nuevo formato
+// Función para generar el código macro usando el campo codigo_macro del archivo cuadricula.geojson
 function generarCodigoMacro(feature) {
+    // Usar el campo codigo_macro del archivo cuadricula.geojson
+    if (feature.properties && feature.properties.codigo_macro) {
+        return feature.properties.codigo_macro;
+    }
+    // Fallback si no existe el campo
     const primeraLetra = feature.properties.codigo ? feature.properties.codigo.charAt(0) : 'A';
     const fid = feature.properties.fid || 0;
-    // Formato: primera letra + '0' + fid (con padding a 4 dígitos)
     return primeraLetra + '0' + fid.toString().padStart(3, '0');
 }
 
@@ -148,8 +167,13 @@ function getPointInGrid(coords, col, row, totalCols, totalRows) {
     return [lat, lng];
 }
 
+// Función para obtener código micro LNLN
 function getMicroCodeFromIndices(ix, iy) {
-    return `${ALFABETO[ix]}${ALFABETO[iy]}${ix % 10}${iy % 10}${Math.floor((ix + iy) / 5)}`;
+    const letra1 = ALFABETO[ix];
+    const num1 = Math.floor(Math.random() * 10); // Número aleatorio 0-9
+    const letra2 = ALFABETO[iy];
+    const num2 = Math.floor(Math.random() * 10); // Número aleatorio 0-9
+    return `${letra1}${num1}${letra2}${num2}`;
 }
 
 function getCacheKey(featureId, level, i, j, ni = null, nj = null) {
@@ -212,6 +236,30 @@ function calculateNanoIndicesFromPoint(lat, lng, feature, microWatermark) {
     };
 }
 
+// Función para obtener VM_LEVEL desde el polígono estafetas.geojson
+function obtenerVMLEVEL(latlng) {
+    if (!rawZonas) return null;
+    
+    const punto = [latlng.lng, latlng.lat];
+    const zonasEnPunto = leafletPip.pointInLayer(punto, L.geoJSON(rawZonas));
+    
+    if (zonasEnPunto.length > 0) {
+        const vmLevel = zonasEnPunto[0].feature.properties.VM_LEVEL;
+        console.log("VM_LEVEL encontrado:", vmLevel);
+        return vmLevel;
+    }
+    
+    console.log("No se encontró VM_LEVEL para esta ubicación");
+    return null;
+}
+
+// Función para obtener los últimos 6 dígitos del código postal
+function obtenerUltimos6Digitos(codigoCompleto) {
+    // Remover guiones y tomar últimos 6 caracteres
+    const codigoSinGuiones = codigoCompleto.replace(/-/g, '');
+    return codigoSinGuiones.slice(-6);
+}
+
 function updateGridAndLabels() {
     gridLayer.clearLayers();
     labelLayer.clearLayers();
@@ -229,7 +277,7 @@ function updateGridAndLabels() {
         
         const coords = f.geometry.coordinates[0];
         
-        // Labels para macro (zoom 10-14)
+        // Labels para macro (zoom 10-14) - YA NO MOSTRAREMOS POPUP EN ESTE NIVEL
         if (z >= 10 && z < 14 && labelsEnabled) {
             L.marker(fBounds.getCenter(), {
                 icon: L.divIcon({ 
@@ -240,7 +288,7 @@ function updateGridAndLabels() {
             }).addTo(labelLayer);
         }
         
-        // Labels y cache para micro (zoom 14-17)
+        // Labels y cache para micro (zoom 14-17) - YA NO MOSTRAREMOS POPUP EN ESTE NIVEL
         for (let i = 0; i < 24; i++) {
             for (let j = 0; j < 24; j++) {
                 const center = getPointInGrid(coords, i + 0.5, j + 0.5, 24, 24);
@@ -271,7 +319,7 @@ function updateGridAndLabels() {
             }
         }
         
-        // Cache para nano (zoom >= 17)
+        // Cache para nano (zoom >= 17) - SOLO AQUÍ MOSTRAREMOS POPUP
         if (z >= 17) {
             for (let i = 0; i < 24; i++) {
                 for (let j = 0; j < 24; j++) {
@@ -739,9 +787,8 @@ mymap.on("click", function (e) {
     console.log(`Zoom: ${z}, Macro: ${macroID}, FeatureIndex: ${featureIndex}`);
 
     if (z < 14) {
-        // Nivel macro
-        titulo = "ZONAS POSTALES";
-        const selectedFeature = hC[0].feature; // Usar solo cuadrícula
+        // Nivel macro - NO MOSTRAR POPUP, solo seleccionar
+        const selectedFeature = hC[0].feature;
         L.geoJSON(selectedFeature, {
             style: {
                 color: "#1a73e8", 
@@ -751,15 +798,13 @@ mymap.on("click", function (e) {
                 className: 'highlighted-polygon'
             }
         }).addTo(selectionLayer);
+        return; // No mostrar popup
         
     } else if (z >= 14 && z < 17) {
-        // NIVEL MICRO
-        titulo = "ÁREA POSTAL";
+        // NIVEL MICRO - NO MOSTRAR POPUP, solo seleccionar
         const closestWatermark = findClosestWatermark(e.latlng, microWatermarkCache, 0.01);
         
         if (closestWatermark) {
-            finalCode += `-${closestWatermark.code}`;
-            
             L.polygon(closestWatermark.bounds, {
                 color: "#3498db", 
                 weight: 3, 
@@ -778,13 +823,16 @@ mymap.on("click", function (e) {
                 zIndexOffset: 1000
             }).addTo(selectionLayer);
         }
+        return; // No mostrar popup
         
     } else {
-        // NIVEL NANO
-        titulo = "CÓDIGO POSTAL";
+        // NIVEL NANO - AQUÍ SÍ MOSTRAR POPUP COMPLETO
+        titulo = "CÓDIGO POSTAL FINAL";
         
         // Buscar en cache nano primero
         const closestWatermark = findClosestWatermark(e.latlng, nanoWatermarkCache, 0.002);
+        
+        let microCode = "", nanoCode = "";
         
         if (closestWatermark) {
             // Obtener código micro del cache
@@ -792,13 +840,14 @@ mymap.on("click", function (e) {
                 closestWatermark.indices.microIx, 
                 closestWatermark.indices.microIy);
             const microWatermark = microWatermarkCache.get(microKey);
-            const microCode = microWatermark ? microWatermark.code : getMicroCodeFromIndices(
+            microCode = microWatermark ? microWatermark.code : getMicroCodeFromIndices(
                 closestWatermark.indices.microIx, 
                 closestWatermark.indices.microIy
             );
+            nanoCode = closestWatermark.code;
             
             // Código completo
-            finalCode += `-${microCode}-${closestWatermark.code}`;
+            finalCode = `${macroID}-${microCode}-${nanoCode}`;
             
             // MOSTRAR CUADRO NANO
             L.polygon(closestWatermark.bounds, {
@@ -825,7 +874,7 @@ mymap.on("click", function (e) {
             L.marker(closestWatermark.center, {
                 icon: L.divIcon({ 
                     className: 'nano-selection-label', 
-                    html: `<div style="background: white; color: #2980b9; padding: 2px 5px; border-radius: 3px; border: 2px solid #2980b9; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">${closestWatermark.code}</div>`, 
+                    html: `<div style="background: white; color: #2980b9; padding: 2px 5px; border-radius: 3px; border: 2px solid #2980b9; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">${nanoCode}</div>`, 
                     iconSize: [45, 22],
                     iconAnchor: [22, 11]
                 }),
@@ -845,10 +894,10 @@ mymap.on("click", function (e) {
         } else {
             // FALLBACK: Calcular manualmente si no se encuentra en cache
             const indices = calculateNanoIndicesFromPoint(e.latlng.lat, e.latlng.lng, hC[0].feature);
-            const microCode = getMicroCodeFromIndices(indices.microIx, indices.microIy);
-            const nanoCode = generateNanoCode(indices.nix, indices.niy, indices.microIx, indices.microIy);
+            microCode = getMicroCodeFromIndices(indices.microIx, indices.microIy);
+            nanoCode = generateNanoCode(indices.nix, indices.niy, indices.microIx, indices.microIy);
             
-            finalCode += `-${microCode}-${nanoCode}`;
+            finalCode = `${macroID}-${microCode}-${nanoCode}`;
             
             const coords = hC[0].feature.geometry.coordinates[0];
             const nanoBounds = [
@@ -894,33 +943,72 @@ mymap.on("click", function (e) {
                 zIndexOffset: 1000
             }).addTo(selectionLayer);
         }
-    }
 
-    console.log(`Título final: ${titulo}, Código: ${finalCode}`);
-    
-    const ws = encodeURIComponent(`📍 Mi ubicación: ${finalCode}\nGPS: ${e.latlng.lat.toFixed(6)},${e.latlng.lng.toFixed(6)}`);
-    
-    // Crear popup con evento para limpiar al cerrar
-    const popupOffset = [0, -60];
-    const popupLatLng = L.latLng(e.latlng.lat + 0.0004, e.latlng.lng);
-    
-    const popup = L.popup({offset: popupOffset})
-        .setLatLng(popupLatLng)
-        .setContent(`
-            <div style="text-align:center;">
-                <small>${titulo}</small><br>
-                <b>${finalCode}</b><br>
-                <button class="btn-nav" onclick="window.open('https://www.google.com/maps?q=${e.latlng.lat},${e.latlng.lng}')">📍 MAPS</button>
-                <button class="btn-ws" onclick="window.open('https://wa.me/?text=${ws}')">💬 WS</button>
-            </div>
-        `)
-        .openOn(mymap);
-    
-    // Evento para limpiar selección cuando se cierra el popup
-    popup.on('remove', function() {
-        selectionLayer.clearLayers();
-        restoreHiddenLabels();
-    });
+        console.log(`Código postal completo: ${finalCode}`);
+        
+        // OBTENER VM_LEVEL DEL POLÍGONO estafetas.geojson
+        const vmLevel = obtenerVMLEVEL(e.latlng);
+        
+        // OBTENER ÚLTIMOS 6 DÍGITOS DEL CÓDIGO POSTAL
+        const ultimos6Digitos = obtenerUltimos6Digitos(finalCode);
+        
+        // CREAR CÓDIGO FINAL CON VM_LEVEL
+        let codigoFinal = "";
+        if (vmLevel) {
+            codigoFinal = `${vmLevel}-${ultimos6Digitos}`;
+        } else {
+            codigoFinal = `SINVM-${ultimos6Digitos}`; // Si no hay VM_LEVEL
+        }
+        
+        // Crear popup con evento para limpiar al cerrar
+        const popupOffset = [0, -60];
+        const popupLatLng = L.latLng(e.latlng.lat + 0.0004, e.latlng.lng);
+        
+        const popup = L.popup({offset: popupOffset, className: 'nano-popup'})
+            .setLatLng(popupLatLng)
+            .setContent(`
+                <div style="text-align:center; padding: 15px; max-width: 320px;">
+                    <div style="font-size: 18px; color: #1976d2; margin-bottom: 10px; font-weight: bold;">
+                        📍 CÓDIGO POSTAL FINAL
+                    </div>
+                    
+                    <div style="background: #f8f9fa; padding: 10px; border-radius: 5px; margin-bottom: 10px; text-align: left;">
+                        <div style="font-size: 13px; color: #495057; margin-bottom: 5px;">
+                            <strong>Código postal:</strong> ${finalCode}
+                        </div>
+                        <div style="font-size: 13px; color: #495057; margin-bottom: 5px;">
+                            <strong>Últimos 6 dígitos:</strong> ${ultimos6Digitos}
+                        </div>
+                        <div style="font-size: 13px; color: #495057; margin-bottom: 5px;">
+                            <strong>VM_LEVEL:</strong> ${vmLevel || "No encontrado"}
+                        </div>
+                        <div style="font-size: 13px; color: #495057;">
+                            <strong>Coordenadas:</strong> ${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}
+                        </div>
+                    </div>
+                    
+                    <div class="codigo-final">
+                        ${codigoFinal}
+                    </div>
+                    
+                    <div style="font-size: 11px; color: #666; margin: 10px 0; font-style: italic;">
+                        Formato: VM_LEVEL + últimos 6 dígitos del código postal
+                    </div>
+                    
+                    <div style="display: flex; gap: 10px; justify-content: center; margin-top: 15px;">
+                        <button class="btn-nav" onclick="window.open('https://www.google.com/maps?q=${e.latlng.lat},${e.latlng.lng}')">📍 MAPS</button>
+                        <button class="btn-ws" onclick="window.open('https://wa.me/?text=${encodeURIComponent(`📍 Código Postal: ${finalCode}\nCódigo Final: ${codigoFinal}\nGPS: ${e.latlng.lat.toFixed(6)},${e.latlng.lng.toFixed(6)}`)}')">💬 WS</button>
+                    </div>
+                </div>
+            `)
+            .openOn(mymap);
+        
+        // Evento para limpiar selección cuando se cierra el popup
+        popup.on('remove', function() {
+            selectionLayer.clearLayers();
+            restoreHiddenLabels();
+        });
+    }
 });
 
 // FUNCIÓN PARA MOSTRAR POPUP DE ZONA (REFERENCIA SOLO)
