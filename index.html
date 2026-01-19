@@ -170,19 +170,19 @@ function decode(s) {
 }
 
 function getGridInfo(lat, lng) {
-    
-    const idxX = Math.floor(((lng - ORIGIN.lng) / PARAMS.RES_NANO) + 0.00001);
-    const idxY = Math.floor(((ORIGIN.lat - lat) / PARAMS.RES_NANO) + 0.00001);
+    // Calculamos el índice absoluto de celdas NANO desde el origen
+    const totalNanoX = Math.floor(((lng - ORIGIN.lng) / PARAMS.RES_NANO) + 0.00001);
+    const totalNanoY = Math.floor(((ORIGIN.lat - lat) / PARAMS.RES_NANO) + 0.00001);
 
     // Nivel Macro (Dígitos 1 y 2)
     const mx = Math.floor(totalNanoX / (24 * 25));
     const my = Math.floor(totalNanoY / (24 * 25));
     
-    // Nivel Micro (Dígitos 3 y 4) - Usamos el resto de la división anterior
+    // Nivel Micro (Dígitos 3 y 4)
     const microX = Math.floor((totalNanoX % (24 * 25)) / 25);
     const microY = Math.floor((totalNanoY % (24 * 25)) / 25);
     
-    // Nivel Nano (Dígitos 5 y 6) - El resto final
+    // Nivel Nano (Dígitos 5 y 6)
     const nanoX = totalNanoX % 25;
     const nanoY = totalNanoY % 25;
 
@@ -253,7 +253,7 @@ function seleccionar(lat, lng, forcedZonaID = null) {
     const step = (z >= 16.5) ? PARAMS.RES_NANO : (z >= 13) ? PARAMS.RES_MICRO : PARAMS.RES_MACRO;
 
     // Ajuste ultra-preciso a la grilla
-    cconst idxX = Math.floor(((lng - ORIGIN.lng) / step) + 0.00001);
+    const idxX = Math.floor(((lng - ORIGIN.lng) / step) + 0.00001);
     const idxY = Math.floor(((ORIGIN.lat - lat) / step) + 0.00001);
 
     const snapLng = ORIGIN.lng + (idxX * step);
@@ -320,7 +320,7 @@ function seleccionar(lat, lng, forcedZonaID = null) {
         <span class="popup-header">${tituloPopup}</span>
         <div class="codigo-final">${codigoFinal}</div>
         <div class="btn-container">
-            <a href="https://www.google.com/maps/search/?api=1&query=${lat},${lng}" target="_blank" class="btn-maps">📍 MAPS</a>
+            <a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank" class="btn-maps">📍 MAPS</a>
             <a href="https://wa.me/?text=Mi+${tituloPopup.replace(' ', '+')}+es:+${codigoFinal.split('<br>')[0]}" target="_blank" class="btn-ws">💬 WS</a>
             <button onclick="buscarEstafetaCercana(${lat}, ${lng})" class="btn-cercana">📍 ESTAFETA CERCANA</button>
         </div>
@@ -397,6 +397,7 @@ render();
 </script>
 </body>
 </html>
+
 
 
 
