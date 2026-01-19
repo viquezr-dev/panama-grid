@@ -163,13 +163,26 @@ function decode(s) {
 }
 
 function getGridInfo(lat, lng) {
-    const mx = Math.floor((lng - ORIGIN.lng) / PARAMS.RES_MACRO);
-    const my = Math.floor((ORIGIN.lat - lat) / PARAMS.RES_MACRO);
-    const microX = Math.floor(((lng - ORIGIN.lng) % PARAMS.RES_MACRO) / PARAMS.RES_MICRO);
-    const microY = Math.floor(((ORIGIN.lat - lat) % PARAMS.RES_MACRO) / PARAMS.RES_MICRO);
-    const nanoX = Math.floor((((lng - ORIGIN.lng) % PARAMS.RES_MACRO) % PARAMS.RES_MICRO) / PARAMS.RES_NANO);
-    const nanoY = Math.floor((((ORIGIN.lat - lat) % PARAMS.RES_MACRO) % PARAMS.RES_MICRO) / PARAMS.RES_NANO);
-    return { macro: encode((my * PARAMS.MACRO_X_COUNT) + mx, 2), micro: encode((microY * 24) + microX, 2), nano: encode((nanoY * 25) + nanoX, 2) };
+    const totalNanoX = Math.floor((lng - ORIGIN.lng) / PARAMS.RES_NANO + 1e-9);
+    const totalNanoY = Math.floor((ORIGIN.lat - lat) / PARAMS.RES_NANO + 1e-9);
+
+    // Nivel Macro (Dígitos 1 y 2)
+    const mx = Math.floor(totalNanoX / (24 * 25));
+    const my = Math.floor(totalNanoY / (24 * 25));
+    
+    // Nivel Micro (Dígitos 3 y 4) - Usamos el resto de la división anterior
+    const microX = Math.floor((totalNanoX % (24 * 25)) / 25);
+    const microY = Math.floor((totalNanoY % (24 * 25)) / 25);
+    
+    // Nivel Nano (Dígitos 5 y 6) - El resto final
+    const nanoX = totalNanoX % 25;
+    const nanoY = totalNanoY % 25;
+
+    return { 
+        macro: encode((my * PARAMS.MACRO_X_COUNT) + mx, 2), 
+        micro: encode((microY * 24) + microX, 2), 
+        nano: encode((nanoY * 25) + nanoX, 2) 
+    };
 }
 
 function buscarEstafetaCercana(userLat, userLng) {
@@ -230,8 +243,15 @@ function seleccionar(lat, lng, forcedZonaID = null) {
     selectionLayer.clearLayers();
     const z = mymap.getZoom();
     const step = (z >= 16.5) ? PARAMS.RES_NANO : (z >= 13) ? PARAMS.RES_MICRO : PARAMS.RES_MACRO;
-    const snapLng = Math.floor((lng - ORIGIN.lng) / step + 0.00000001) * step + ORIGIN.lng;
-    const snapLat = ORIGIN.lat - Math.floor((ORIGIN.lat - lat) / step + 0.00000001) * step;
+
+    // Ajuste ultra-preciso a la grilla
+    const idxX = Math.floor((lng - ORIGIN.lng) / step + 1e-9);
+    const idxY = Math.floor((ORIGIN.lat - lat) / step + 1e-9);
+
+    const snapLng = (idxX * step) + ORIGIN.lng;
+    const snapLat = ORIGIN.lat - (idxY * step);
+    
+    // El centro del cuadro para validar si está dentro de la zona (Polygon)
     const centroCuadro = { lat: snapLat - (step / 2), lng: snapLng + (step / 2) };
 
     let zonaID = forcedZonaID;
@@ -364,4 +384,5 @@ render();
 </script>
 </body>
 </html>
+
 
