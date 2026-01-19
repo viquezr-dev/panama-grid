@@ -177,31 +177,52 @@ function buscarEstafetaCercana(userLat, userLng) {
     let estafetaMasCercana = null;
     let distanciaMinima = Infinity;
 
+    // Iteramos sobre todas las capas dentro de layerEstafetas
     layerEstafetas.eachLayer(function(layer) {
-        if (layer instanceof L.CircleMarker) {
-            let coordsEstafeta = layer.getLatLng();
-            let distancia = puntoUsuario.distanceTo(coordsEstafeta);
-            if (distancia < distanciaMinima) {
-                distanciaMinima = distancia;
-                estafetaMasCercana = layer;
+        // En GeoJSON, los puntos pueden estar dentro de capas internas
+        let layers = (layer.getLayers) ? layer.getLayers() : [layer];
+        
+        layers.forEach(function(l) {
+            if (l.getLatLng) {
+                let coordsEstafeta = l.getLatLng();
+                let distancia = puntoUsuario.distanceTo(coordsEstafeta);
+                if (distancia < distanciaMinima) {
+                    distanciaMinima = distancia;
+                    estafetaMasCercana = l;
+                }
             }
-        }
+        });
     });
 
-    if (estafetaMasCercana) {
-        let nombre = estafetaMasCercana.feature.properties.ESTAF_NAME;
+    if (estafetaMasCercana && estafetaMasCercana.feature) {
+        let nombre = estafetaMasCercana.feature.properties.ESTAF_NAME || "Estafeta sin nombre";
         let distKm = (distanciaMinima / 1000).toFixed(2);
-        mymap.setView(estafetaMasCercana.getLatLng(), 16);
-        estafetaMasCercana.bindPopup(`
-            <div style="text-align: center;">
-                <b style="color: #28a745;">ESTAFETA ENCONTRADA</b><br>
-                <span style="font-size: 14px; font-weight: bold;">${nombre}</span><br>
-                <hr style="margin: 5px 0;">
-                <p style="margin: 0; font-size: 12px;">Distancia desde su punto:<br>
-                <b style="font-size: 16px;">${distKm} km</b></p>
-            </div>
-        `).openPopup();
-        L.polyline([puntoUsuario, estafetaMasCercana.getLatLng()], {color: '#003366', weight: 2, dashArray: '5, 10'}).addTo(selectionLayer);
+        
+        // Volamos a la estafeta
+        mymap.flyTo(estafetaMasCercana.getLatLng(), 16);
+
+        // Esperamos a que termine el vuelo para abrir el popup
+        mymap.once('moveend', function() {
+            estafetaMasCercana.bindPopup(`
+                <div style="text-align: center;">
+                    <b style="color: #28a745;">ESTAFETA ENCONTRADA</b><br>
+                    <span style="font-size: 14px; font-weight: bold;">${nombre}</span><br>
+                    <hr style="margin: 5px 0;">
+                    <p style="margin: 0; font-size: 12px;">Distancia desde su punto:<br>
+                    <b style="font-size: 16px;">${distKm} km</b></p>
+                </div>
+            `).openPopup();
+            
+            // Dibujamos la línea de conexión
+            L.polyline([puntoUsuario, estafetaMasCercana.getLatLng()], {
+                color: '#003366', 
+                weight: 2, 
+                dashArray: '5, 10',
+                opacity: 0.7
+            }).addTo(selectionLayer);
+        });
+    } else {
+        alert("No se encontraron estafetas cargadas en el mapa.");
     }
 }
 
@@ -343,3 +364,4 @@ render();
 </script>
 </body>
 </html>
+
