@@ -234,6 +234,7 @@ function seleccionar(lat, lng, forcedZonaID = null) {
     if (isZonaVisible) {
         tituloPopup = "ZONA POSTAL";
         codigoFinal = zonaID;
+        codigoFinal += "<br><small style='color:#d9534f; font-weight:normal; display:block; margin-top:5px;'>Desactive la casilla de Zonas para buscar Códigos postales</small>";
     } else {
         if (z >= 16.5) {
             tituloPopup = "CÓDIGO POSTAL";
@@ -346,4 +347,5 @@ render();
 </script>
 </body>
 </html>
+
 
