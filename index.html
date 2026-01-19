@@ -80,6 +80,13 @@
 <div id="mapid"></div>
 
 <script>
+function snapToGrid(coord, origin, step) {
+    // Usamos un epsilon más pequeño y una lógica de redondeo más estable
+    const delta = coord - origin;
+    const itemIndex = Math.floor(delta / step + 0.0000000001); 
+    return origin + (itemIndex * step);
+}
+  
 const ORIGIN = { lat: 10.0, lng: -83.0 };
 const PANAMA_LIMITS = { N: 10.0, S: 7.0, W: -83.0, E: -77.0 };
 const PARAMS = {
@@ -248,8 +255,8 @@ function seleccionar(lat, lng, forcedZonaID = null) {
     const idxX = Math.floor((lng - ORIGIN.lng) / step + 1e-9);
     const idxY = Math.floor((ORIGIN.lat - lat) / step + 1e-9);
 
-    const snapLng = (idxX * step) + ORIGIN.lng;
-    const snapLat = ORIGIN.lat - (idxY * step);
+    const snapLng = snapToGrid(lng, ORIGIN.lng, step);
+    const snapLat = ORIGIN.lat - snapToGrid(ORIGIN.lat - lat, 0, step);
     
     // El centro del cuadro para validar si está dentro de la zona (Polygon)
     const centroCuadro = { lat: snapLat - (step / 2), lng: snapLng + (step / 2) };
@@ -342,11 +349,11 @@ function render() {
     const z = mymap.getZoom();
     const b = mymap.getBounds();
     const draw = (step, layer, labelClass, color, weight, opacity) => {
-        let sLng = Math.floor((b.getWest() - ORIGIN.lng) / step) * step + ORIGIN.lng;
-        let sLat = ORIGIN.lat - Math.floor((ORIGIN.lat - b.getNorth()) / step) * step;
+        let sLng = snapToGrid(b.getWest(), ORIGIN.lng, step);
+        let sLat = ORIGIN.lat - snapToGrid(ORIGIN.lat - b.getNorth(), 0, step);
         let count = 0;
         for (let lo = sLng; lo < b.getEast() + step && lo < PANAMA_LIMITS.E; lo += step) {
-            for (let la = sLat; la > b.getSouth() - step && la > PANAMA_LIMITS.S; la -= step) {
+        for (let la = sLat; la > b.getSouth() - step && la > PANAMA_LIMITS.S; la -= step) {
                 if (count++ > 400) return;
                 const data = getGridInfo(la - step/2, lo + step/2);
                 L.rectangle([[la, lo], [la - step, lo + step]], { color: color, weight: weight, fill: false, opacity: opacity, interactive: false }).addTo(layer);
@@ -384,5 +391,6 @@ render();
 </script>
 </body>
 </html>
+
 
 
