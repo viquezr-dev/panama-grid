@@ -324,10 +324,10 @@ function render() {
 }
 
 const overlays = { 
-    "🔲 Cuadrícula": layerMacro, 
-    "🗺️ Zonas": layerZonas, 
+    "🔲 🗺️ Zonas": layerZonas,  
     "🛣️ Rutas": layerRutas, 
-    "📍 Estafetas": layerEstafetas, 
+    "📍 Estafetas": layerEstafetas,
+    "🔲 Cuadrícula": layerMacro,
     "🔵 Mi Ubicación": layerMiUbicacion 
 };
 L.control.layers(null, overlays, { collapsed: false, position: 'topright' }).addTo(mymap);
@@ -346,3 +346,4 @@ render();
 </script>
 </body>
 </html>
+
