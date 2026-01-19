@@ -170,8 +170,9 @@ function decode(s) {
 }
 
 function getGridInfo(lat, lng) {
-    const totalNanoX = Math.floor((lng - ORIGIN.lng) / PARAMS.RES_NANO + 1e-9);
-    const totalNanoY = Math.floor((ORIGIN.lat - lat) / PARAMS.RES_NANO + 1e-9);
+    
+    const idxX = Math.floor(((lng - ORIGIN.lng) / PARAMS.RES_NANO) + 0.00001);
+    const idxY = Math.floor(((ORIGIN.lat - lat) / PARAMS.RES_NANO) + 0.00001);
 
     // Nivel Macro (Dígitos 1 y 2)
     const mx = Math.floor(totalNanoX / (24 * 25));
@@ -252,11 +253,11 @@ function seleccionar(lat, lng, forcedZonaID = null) {
     const step = (z >= 16.5) ? PARAMS.RES_NANO : (z >= 13) ? PARAMS.RES_MICRO : PARAMS.RES_MACRO;
 
     // Ajuste ultra-preciso a la grilla
-    const idxX = Math.floor((lng - ORIGIN.lng) / step + 1e-9);
-    const idxY = Math.floor((ORIGIN.lat - lat) / step + 1e-9);
+    cconst idxX = Math.floor(((lng - ORIGIN.lng) / step) + 0.00001);
+    const idxY = Math.floor(((ORIGIN.lat - lat) / step) + 0.00001);
 
-    const snapLng = snapToGrid(lng, ORIGIN.lng, step);
-    const snapLat = ORIGIN.lat - snapToGrid(ORIGIN.lat - lat, 0, step);
+    const snapLng = ORIGIN.lng + (idxX * step);
+    const snapLat = ORIGIN.lat - (idxY * step);
     
     // El centro del cuadro para validar si está dentro de la zona (Polygon)
     const centroCuadro = { lat: snapLat - (step / 2), lng: snapLng + (step / 2) };
@@ -349,12 +350,17 @@ function render() {
     const z = mymap.getZoom();
     const b = mymap.getBounds();
     const draw = (step, layer, labelClass, color, weight, opacity) => {
-        let sLng = snapToGrid(b.getWest(), ORIGIN.lng, step);
-        let sLat = ORIGIN.lat - snapToGrid(ORIGIN.lat - b.getNorth(), 0, step);
+    const b = mymap.getBounds();
+        
+        let startIdxX = Math.floor((b.getWest() - ORIGIN.lng) / step);
+        let startIdxY = Math.floor((ORIGIN.lat - b.getNorth()) / step);
+        
+        let sLng = ORIGIN.lng + (startIdxX * step);
+        let sLat = ORIGIN.lat - (startIdxY * step);
         let count = 0;
         for (let lo = sLng; lo < b.getEast() + step && lo < PANAMA_LIMITS.E; lo += step) {
         for (let la = sLat; la > b.getSouth() - step && la > PANAMA_LIMITS.S; la -= step) {
-                if (count++ > 400) return;
+                if (count++ > 500) return;
                 const data = getGridInfo(la - step/2, lo + step/2);
                 L.rectangle([[la, lo], [la - step, lo + step]], { color: color, weight: weight, fill: false, opacity: opacity, interactive: false }).addTo(layer);
                 if (labelClass && ((labelClass==='label-macro' && z < 13) || (labelClass==='label-micro' && z >= 13 && z < 16.5))) {
@@ -391,6 +397,7 @@ render();
 </script>
 </body>
 </html>
+
 
 
 
