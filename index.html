@@ -346,32 +346,63 @@ document.getElementById('search-btn').addEventListener('click', () => {
 });
 
 function render() {
-    layerMacro.clearLayers(); layerMicro.clearLayers(); layerNano.clearLayers();
+    layerMacro.clearLayers(); 
+    layerMicro.clearLayers(); 
+    layerNano.clearLayers();
+    
     const z = mymap.getZoom();
     const b = mymap.getBounds();
+
     const draw = (step, layer, labelClass, color, weight, opacity) => {
-    const b = mymap.getBounds();
+        // Obtenemos los índices de inicio alineados al ORIGIN
+        let sIdxX = Math.floor((b.getWest() - ORIGIN.lng) / step);
+        let sIdxY = Math.floor((ORIGIN.lat - b.getNorth()) / step);
         
-        let startIdxX = Math.floor((b.getWest() - ORIGIN.lng) / step);
-        let startIdxY = Math.floor((ORIGIN.lat - b.getNorth()) / step);
-        
-        let sLng = ORIGIN.lng + (startIdxX * step);
-        let sLat = ORIGIN.lat - (startIdxY * step);
+        // Empezamos un cuadro antes para evitar bordes vacíos al mover el mapa
+        let sLng = ORIGIN.lng + (sIdxX * step);
+        let sLat = ORIGIN.lat - (sIdxY * step);
+
         let count = 0;
+        // Aumentamos el límite a 2000 para cubrir pantallas grandes en zoom 16.5
+        const MAX_RECTS = 2000; 
+
         for (let lo = sLng; lo < b.getEast() + step && lo < PANAMA_LIMITS.E; lo += step) {
-        for (let la = sLat; la > b.getSouth() - step && la > PANAMA_LIMITS.S; la -= step) {
-                if (count++ > 500) return;
-                const data = getGridInfo(la - step/2, lo + step/2);
-                L.rectangle([[la, lo], [la - step, lo + step]], { color: color, weight: weight, fill: false, opacity: opacity, interactive: false }).addTo(layer);
+            for (let la = sLat; la > b.getSouth() - step && la > PANAMA_LIMITS.S; la -= step) {
+                
+                if (count++ > MAX_RECTS) return; // Límite aumentado
+
+                const info = getGridInfo(la - step/2, lo + step/2);
+                
+                L.rectangle([[la, lo], [la - step, lo + step]], { 
+                    color: color, 
+                    weight: weight, 
+                    fill: false, 
+                    opacity: opacity, 
+                    interactive: false 
+                }).addTo(layer);
+
+                // Etiquetas de texto (solo para Macro y Micro)
                 if (labelClass && ((labelClass==='label-macro' && z < 13) || (labelClass==='label-micro' && z >= 13 && z < 16.5))) {
-                    const txt = labelClass === 'label-macro' ? data.macro : data.micro;
-                    L.marker([la - step/2, lo + step/2], { icon: L.divIcon({className: 'inv'}) }).bindTooltip(txt, { permanent: true, direction: 'center', className: `watermark-tooltip ${labelClass}` }).addTo(layer);
+                    const txt = labelClass === 'label-macro' ? info.macro : info.micro;
+                    L.marker([la - step/2, lo + step/2], { 
+                        icon: L.divIcon({className: 'inv'}) 
+                    }).bindTooltip(txt, { 
+                        permanent: true, 
+                        direction: 'center', 
+                        className: `watermark-tooltip ${labelClass}` 
+                    }).addTo(layer);
                 }
             }
         }
     };
+
+    // Control de capas por Zoom
     if (z >= 9) draw(PARAMS.RES_MACRO, layerMacro, 'label-macro', '#1a73e8', 1.5, 0.2);
     if (z >= 13) draw(PARAMS.RES_MICRO, layerMicro, 'label-micro', '#e67e22', 1, 0.2);
+    
+    // Nivel NANO: Se activa en 16.5. 
+    // Si ves que aún falta llenar, puedes subir el zoom de activación a 17 
+    // o subir el MAX_RECTS a 3000.
     if (z >= 16.5) draw(PARAMS.RES_NANO, layerNano, '', '#2c3e50', 0.5, 0.15);
 }
 
@@ -397,6 +428,7 @@ render();
 </script>
 </body>
 </html>
+
 
 
 
